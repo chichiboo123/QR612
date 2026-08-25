@@ -18,6 +18,7 @@ import {
   syncAddressBar,
 } from './ui/shareButton.js';
 import { createFooter } from './ui/footer.js';
+import { createCredits } from './ui/credits.js';
 
 const state = {
   url: '',
@@ -46,7 +47,7 @@ main.className = 'app-main';
 const stageColumn = document.createElement('div');
 stageColumn.className = 'app-main__stage';
 
-app.append(main, createFooter());
+app.append(main, createCredits(), createFooter());
 
 /* 3D 스테이지 ------------------------------------------------------- */
 

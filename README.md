@@ -1,5 +1,7 @@
 # QR612
 
+**https://qr612.chichiboo.link**
+
 URL을 입력하면 그 URL을 인코딩한 QR코드를 **어린왕자 세계관의 4가지 테마 3D 씬**으로
 보여주는 웹앱입니다. 아이소메트릭 뷰에서는 하나의 장면처럼 보이지만,
 **화면을 탭하면 탑다운 뷰로 전환되며 실제로 스캔 가능한 QR코드**가 됩니다.
@@ -33,7 +35,10 @@ npm run preview   # 빌드 결과 미리보기
 QR612/
 ├── index.html
 ├── vite.config.js
+├── .github/workflows/
+│   └── deploy.yml            # GitHub Pages 자동 배포
 ├── public/
+│   ├── CNAME                 # 커스텀 도메인 (qr612.chichiboo.link)
 │   └── favicon.svg
 └── src/
     ├── main.js               # 앱 조립 · 상태 · 공유 파라미터 처리
@@ -52,6 +57,7 @@ QR612/
     │   ├── urlInput.js
     │   ├── themePicker.js
     │   ├── shareButton.js
+    │   ├── credits.js
     │   └── footer.js
     └── styles/
         └── main.css          # KRDS / 치치부 디자인 변수
@@ -131,22 +137,34 @@ UI 크롬(입력창 · 버튼 · 테마 카드 · 헤더 · 푸터)은 치치부
 
 ## 배포
 
-정적 사이트이므로 `dist/` 를 그대로 올리면 됩니다.
+**https://qr612.chichiboo.link** — GitHub Actions 로 GitHub Pages 에 자동 배포됩니다.
+
+기본 브랜치에 push 되면 `.github/workflows/deploy.yml` 이 돌면서
+`npm ci` → `npm run build` → `dist/` 를 Pages 아티팩트로 업로드하고 배포합니다.
+Actions 탭에서 `workflow_dispatch` 로 수동 실행할 수도 있습니다.
+
+커스텀 도메인은 `public/CNAME` 에 담겨 있어 빌드할 때마다 `dist/CNAME` 으로 복사됩니다.
+워크플로에 이 파일의 존재를 확인하는 단계를 넣어두었으므로, 실수로 지워지면 배포가
+성공한 뒤 도메인이 풀리는 대신 빌드 단계에서 바로 실패합니다.
+
+DNS 는 `qr612` 서브도메인에 CNAME 레코드로 `chichiboo123.github.io` 를 가리키면 됩니다.
+저장소 Settings → Pages 에서 **Enforce HTTPS** 를 켜두는 것을 권장합니다.
+
+정적 사이트이므로 다른 호스팅(Cloudflare Pages, Netlify 등)에 올릴 수도 있습니다.
+빌드 명령 `npm run build`, 출력 디렉터리 `dist`, Node 18 이상이면 되고,
 `vite.config.js` 의 `base: './'` 덕분에 서브 경로 배포에서도 동작합니다.
 
-**Cloudflare Pages**
+## 아이디어를 얻은 곳
 
-| 항목 | 값 |
-|---|---|
-| Framework preset | Vite |
-| Build command | `npm run build` |
-| Build output directory | `dist` |
-| Node version | 18 이상 |
+**QR 매트릭스를 3D 오브젝트의 배치와 높이로 인코딩하고, 카메라 전환으로 2D 스캔 뷰를
+드러낸다**는 구조적 아이디어는 아래 작업들에서 얻었습니다.
 
-## 참고
+- [tree.icqr.com](https://tree.icqr.com/) — URL을 3D 나무와 QR코드로 바꾸는 서비스
+  (by [@logotypercom](https://x.com/logotypercom))
+- [@reactiive_](https://x.com/reactiive_)
 
-QR 매트릭스를 3D 오브젝트의 배치와 높이로 인코딩하고 카메라 전환으로 2D 스캔 뷰를
-드러낸다는 구조적 아이디어만 참고했으며, 코드와 에셋은 모두 독자적으로 구현했습니다.
+QR612 는 나무 모티브 대신 어린왕자 모티브로 완전히 다르게 재해석했으며,
+코드와 에셋은 어느 것도 가져오지 않고 모두 독자적으로 구현했습니다.
 
 ---
 
