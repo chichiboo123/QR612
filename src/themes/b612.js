@@ -5,7 +5,7 @@
  * 바오밥나무 실루엣 · 화산 · 작은 의자를 로우폴리로 얹는다.
  * 지평선 근처에는 여러 개의 태양이 낮게 걸려 있다.
  *
- * 팔레트: 세이지그린 행성 표면 + 코발트블루 하늘
+ * 팔레트: 밝은 세이지그린 행성 표면 + 맑은 코발트블루 하늘
  */
 
 import * as THREE from 'three';
@@ -18,6 +18,7 @@ import {
   blob,
   group,
   ringPoint,
+  squareRingPoint,
   makeRandom,
 } from './_shared.js';
 
@@ -25,21 +26,24 @@ export const meta = {
   id: 'b612',
   label: 'B612',
   caption: '작은 행성',
-  swatch: ['#8FA998', '#2C5F8A', '#F0C987'],
+  swatch: ['#A8C6A9', '#5E9FD4', '#FFD98A'],
 };
 
 const PALETTE = {
-  /** 3D 씬용 */
-  dark: '#3E5C4B', // 높은 블록 — 깊은 이끼빛
-  darkEmissive: '#0B140F',
-  light: '#A9C0AC', // 낮은 블록 — 밝은 세이지
-  ground: '#8FA998', // 행성 표면
-  groundEmissive: '#0A1410',
-  sky: '#2C5F8A', // 코발트블루 하늘
-  accent: '#F0C987', // 태양빛
-  /** 2D 스캔 뷰용 (대비 확보) */
-  scanDark: '#12241B',
-  scanLight: '#FAFBF7',
+  /* 3D 씬 */
+  dark: '#6E9B79', // 높은 블록 — 밝은 이끼빛
+  darkEmissive: '#16261B',
+  light: '#DCE9D6', // 낮은 블록 — 아주 밝은 세이지
+  ground: '#A8C6A9', // 행성 표면
+  groundEmissive: '#101C13',
+  sky: '#5E9FD4', // 맑은 코발트블루
+  accent: '#FFD98A', // 햇빛
+
+  /* 탑다운 스캔 뷰 (대비 8.9:1) */
+  scanDark: '#2E4A38',
+  scanLight: '#F1F6EC',
+  scanGround: '#B6D0B4', // QR 카드가 얹히는 풍경색
+  scanShadow: '#5C7A63',
 };
 
 export function getPalette() {
@@ -54,39 +58,39 @@ export function getCurvature() {
 export function getBlockGeometry(isDark) {
   if (isDark) {
     return {
-      // 살짝 좁아지는 사다리꼴 기둥 — 로우폴리 바위 느낌
-      geometry: new THREE.CylinderGeometry(0.78, 1, 1, 4, 1),
+      // 정사각 밑면 — 탑다운에서 모듈이 정확히 맞물리도록
+      geometry: new THREE.BoxGeometry(1, 1, 1),
       material: flatMaterial(PALETTE.dark, { emissive: PALETTE.darkEmissive }),
-      height: 2.5,
+      height: 1.75,
     };
   }
   return {
     geometry: new THREE.BoxGeometry(1, 1, 1),
     material: flatMaterial(PALETTE.light),
-    height: 0.45,
+    height: 0.5,
   };
 }
 
 export function getBackgroundSetup() {
   return {
     background: PALETTE.sky,
-    fog: { color: '#3A6E96', near: 92, far: 265 },
+    fog: { color: '#5E9FD4', near: 70, far: 175 },
     lights: [
-      { type: 'hemisphere', sky: '#BFD9F2', ground: '#4E6B58', intensity: 1.5 },
+      { type: 'hemisphere', sky: '#D8ECFF', ground: '#7E9C82', intensity: 2.0 },
       {
         type: 'directional',
-        color: '#FFE3B0',
-        intensity: 2.2,
-        position: [-38, 26, 30],
+        color: '#FFF0CE',
+        intensity: 2.5,
+        position: [-38, 30, 30],
       },
-      { type: 'ambient', color: '#7FA6C9', intensity: 0.5 },
+      { type: 'ambient', color: '#BFD9F2', intensity: 0.8 },
     ],
     /** 지평선 근처에 낮게 걸린 태양들 */
     objects: [
-      { type: 'sun', position: [-70, 9, -95], scale: 7.5, color: '#F6D18B' },
-      { type: 'sun', position: [-24, 5, -110], scale: 5.2, color: '#F0B473' },
-      { type: 'sun', position: [46, 12, -102], scale: 4.2, color: '#FBE3B6' },
-      { type: 'sun', position: [92, 4, -78], scale: 3.0, color: '#EBA96A' },
+      { type: 'sun', position: [-70, 9, -95], scale: 7.5, color: '#FFE3A8' },
+      { type: 'sun', position: [-24, 5, -110], scale: 5.2, color: '#FFCE8C' },
+      { type: 'sun', position: [46, 12, -102], scale: 4.2, color: '#FFF0CE' },
+      { type: 'sun', position: [92, 4, -78], scale: 3.0, color: '#FFC178' },
     ],
   };
 }
@@ -98,19 +102,19 @@ export function placeDecorations(matrixSize) {
   // 바오밥나무 2그루 — 행성 반대편 가장자리에
   const baobabAngles = [-58, 132];
   for (let i = 0; i < baobabAngles.length; i += 1) {
-    const [x, z] = ringPoint(matrixSize, baobabAngles[i], 4.5);
+    const [x, z] = ringPoint(matrixSize, baobabAngles[i], 5.5);
     specs.push({
       type: 'baobab',
       position: [x, 0, z],
       rotation: [0, rand() * Math.PI * 2, 0],
-      scale: 3.4 + i * 0.5,
+      scale: 3.2 + i * 0.5,
     });
   }
 
   // 화산 2개
   const volcanoAngles = [38, -142];
   for (let i = 0; i < volcanoAngles.length; i += 1) {
-    const [x, z] = ringPoint(matrixSize, volcanoAngles[i], 5.5);
+    const [x, z] = ringPoint(matrixSize, volcanoAngles[i], 6);
     specs.push({
       type: 'volcano',
       position: [x, 0, z],
@@ -120,13 +124,26 @@ export function placeDecorations(matrixSize) {
   }
 
   // 작은 의자 하나
-  const [cx, cz] = ringPoint(matrixSize, -8, 5);
+  const [cx, cz] = ringPoint(matrixSize, -8, 5.5);
   specs.push({
     type: 'chair',
     position: [cx, 0, cz],
     rotation: [0, -0.35, 0],
-    scale: 1.5,
+    scale: 1.6,
   });
+
+  // 탑다운에서도 남는 낮은 풍경 — QR 판 바깥 정사각 링 위에만 둔다
+  for (let i = 0; i < 26; i += 1) {
+    const angle = (360 / 26) * i + rand() * 9;
+    const [gx, gz] = squareRingPoint(matrixSize, angle, 1.4 + rand() * 4.5);
+    specs.push({
+      type: rand() > 0.32 ? 'tuft' : 'pebble',
+      position: [gx, 0, gz],
+      rotation: [0, rand() * Math.PI * 2, 0],
+      scale: 1.5 + rand() * 1.1,
+      persistent: true,
+    });
+  }
 
   return specs;
 }
@@ -141,6 +158,10 @@ export function buildDecoration(spec) {
       return buildChair();
     case 'sun':
       return buildSun(spec.color || PALETTE.accent);
+    case 'tuft':
+      return buildTuft();
+    case 'pebble':
+      return buildPebble();
     default:
       return null;
   }
@@ -151,8 +172,8 @@ export function buildDecoration(spec) {
 /* ------------------------------------------------------------------ */
 
 function buildBaobab() {
-  const barkMat = flatMaterial('#5B4634');
-  const leafMat = flatMaterial('#2F4A38', { emissive: '#07110B' });
+  const barkMat = flatMaterial('#8A6A4A');
+  const leafMat = flatMaterial('#4E8360', { emissive: '#0E1D14' });
 
   const trunk = cylinder(0.34, 0.72, 2.1, 6, barkMat, [0, 1.05, 0]);
 
@@ -180,21 +201,31 @@ function buildBaobab() {
 }
 
 function buildVolcano() {
-  const rockMat = flatMaterial('#6E7F6E', { emissive: '#0B120C' });
-  const craterMat = flatMaterial('#D97A4E', { emissive: '#4A1D0C' });
+  const rockMat = flatMaterial('#93A48F', { emissive: '#161E16' });
+  const craterMat = flatMaterial('#F0906A', { emissive: '#5A2410' });
 
   const body = cylinder(0.55, 1.5, 1.5, 7, rockMat, [0, 0.75, 0]);
   const crater = cylinder(0.42, 0.5, 0.16, 7, craterMat, [0, 1.5, 0]);
   const smoke = group(
-    blob(0.22, 0, flatMaterial('#B9C6C9', { transparent: true, opacity: 0.55 }), [0.05, 1.85, 0]),
-    blob(0.15, 0, flatMaterial('#CBD5D7', { transparent: true, opacity: 0.4 }), [0.2, 2.2, 0.08])
+    blob(
+      0.22,
+      0,
+      flatMaterial('#E4EDEF', { transparent: true, opacity: 0.6 }),
+      [0.05, 1.85, 0]
+    ),
+    blob(
+      0.15,
+      0,
+      flatMaterial('#F1F6F7', { transparent: true, opacity: 0.45 }),
+      [0.2, 2.2, 0.08]
+    )
   );
 
   return group(body, crater, smoke);
 }
 
 function buildChair() {
-  const woodMat = flatMaterial('#C9A227', { emissive: '#231A05' });
+  const woodMat = flatMaterial('#E8B93F', { emissive: '#2E230A' });
   const seat = box(0.9, 0.1, 0.85, woodMat, [0, 0.55, 0]);
   const back = box(0.9, 0.75, 0.1, woodMat, [0, 0.95, -0.38]);
 
@@ -214,17 +245,41 @@ function buildChair() {
 function buildSun(color) {
   const disc = new THREE.Mesh(
     new THREE.CircleGeometry(1, 26),
-    glowMaterial(color, { opacity: 0.92 })
+    glowMaterial(color, { opacity: 0.95 })
   );
   const halo = new THREE.Mesh(
     new THREE.CircleGeometry(1.55, 26),
-    glowMaterial(color, { opacity: 0.18, depthWrite: false })
+    glowMaterial(color, { opacity: 0.2, depthWrite: false })
   );
   halo.position.z = -0.05;
 
   const g = group(halo, disc);
   g.userData.billboard = true;
   return g;
+}
+
+/** 탑다운에서도 남는 작은 풀포기 */
+function buildTuft() {
+  const mat = flatMaterial('#6FA87C');
+  const g = group();
+  for (const [bx, bz, tilt, h] of [
+    [0, 0, 0, 0.5],
+    [0.16, 0.08, 0.35, 0.38],
+    [-0.15, -0.06, -0.32, 0.34],
+  ]) {
+    const blade = cone(0.09, h, 4, mat, [bx, h / 2, bz]);
+    blade.rotation.z = tilt;
+    g.add(blade);
+  }
+  return g;
+}
+
+/** 탑다운에서도 남는 작은 조약돌 */
+function buildPebble() {
+  const mat = flatMaterial('#C3D2BE');
+  const rock = blob(0.26, 0, mat, [0, 0.12, 0]);
+  rock.scale.set(1.2, 0.55, 1);
+  return group(rock);
 }
 
 export default {

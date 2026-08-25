@@ -4,6 +4,13 @@
 
 import { normalizeUrl } from '../core/qrEncode.js';
 
+const MESSAGE_ICONS = {
+  info: 'info',
+  success: 'check_circle',
+  warning: 'warning_amber',
+  error: 'error_outline',
+};
+
 /**
  * @param {object} options
  * @param {string} [options.initialValue]
@@ -15,7 +22,7 @@ export function createUrlInput({ initialValue = '', onSubmit }) {
   section.className = 'panel';
   section.innerHTML = `
     <h2 class="panel__title">
-      <span class="material-icons-outlined">link</span>
+      <span class="material-icons-outlined" aria-hidden="true">link</span>
       QR로 만들 주소
     </h2>
     <form class="field" novalidate>
@@ -32,7 +39,7 @@ export function createUrlInput({ initialValue = '', onSubmit }) {
           placeholder="https://litt.ly/chichiboo"
         />
         <button class="btn btn-primary" type="submit">
-          <span class="material-icons-outlined">auto_awesome</span>
+          <span class="material-icons-outlined" aria-hidden="true">auto_awesome</span>
           생성하기
         </button>
       </div>
@@ -53,8 +60,8 @@ export function createUrlInput({ initialValue = '', onSubmit }) {
 
     const icon = document.createElement('span');
     icon.className = 'material-icons-outlined';
-    icon.textContent =
-      tone === 'error' ? 'error_outline' : tone === 'success' ? 'check_circle' : 'info';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.textContent = MESSAGE_ICONS[tone] || MESSAGE_ICONS.info;
     message.append(icon, document.createTextNode(text));
   }
 

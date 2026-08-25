@@ -18,6 +18,7 @@ export function createCredits() {
 
   const icon = document.createElement('span');
   icon.className = 'material-icons-outlined';
+  icon.setAttribute('aria-hidden', 'true');
   icon.textContent = 'lightbulb';
 
   const text = document.createElement('span');

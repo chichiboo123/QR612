@@ -2,10 +2,11 @@
  * themes/starryNight.js — 2) 별이 빛나는 밤하늘
  * ---------------------------------------------------------------------------
  * QR 의 dark 모듈만 낮은 발광 강도의 별로 표현하고, light 모듈은
- * 거의 보이지 않는 어두운 바닥으로 남겨 은하수 같은 대비를 만든다.
- * 작은 행성 가장자리에 어린왕자 실루엣이 서 있다.
+ * 어두운 바닥으로 남겨 은하수 같은 대비를 만든다.
+ * 작은 행성 가장자리에는 어린왕자의 가로등이 따뜻하게 켜져 있다.
+ * (인물 형상은 두지 않고 소품과 빛으로만 이야기를 전한다.)
  *
- * 팔레트: 딥네이비 배경 + 골드 별빛
+ * 팔레트: 밝은 인디고 밤하늘 + 골드 별빛
  */
 
 import * as THREE from 'three';
@@ -18,26 +19,32 @@ import {
   blob,
   group,
   ringPoint,
+  squareRingPoint,
   makeRandom,
 } from './_shared.js';
 
 export const meta = {
   id: 'starry-night',
   label: '별이 빛나는 밤하늘',
-  caption: '은하수와 어린왕자',
-  swatch: ['#0D1B3E', '#F2C14E', '#6E86C6'],
+  caption: '은하수와 가로등',
+  swatch: ['#22336B', '#FFD972', '#8FA6E0'],
 };
 
 const PALETTE = {
-  dark: '#F2C14E', // 별빛 골드
-  darkEmissive: '#8A6412', // 낮은 발광 강도
-  light: '#101F44', // 어두운 배경 모듈
-  ground: '#0A1533',
-  groundEmissive: '#020610',
-  sky: '#0D1B3E',
-  accent: '#F2C14E',
-  scanDark: '#0A0A0A',
-  scanLight: '#F7F7FA',
+  /* 3D 씬 */
+  dark: '#FFD972', // 별빛 골드
+  darkEmissive: '#7A5A14', // 낮은 발광 강도
+  light: '#2E4288', // 은은한 인디고 바닥
+  ground: '#22336B',
+  groundEmissive: '#0A1130',
+  sky: '#263A79', // 밝힌 밤하늘
+  accent: '#FFD972',
+
+  /* 탑다운 스캔 뷰 (대비 12.4:1) — 달빛 종이 위의 인디고 */
+  scanDark: '#1E2B57',
+  scanLight: '#FAF4E2',
+  scanGround: '#4A5FA8',
+  scanShadow: '#16204A',
 };
 
 export function getPalette() {
@@ -45,24 +52,21 @@ export function getPalette() {
 }
 
 export function getCurvature() {
-  return 0.25; // 아주 완만한 곡률로 밤하늘이 감싸는 느낌만
+  return 0.3;
 }
 
 export function getBlockGeometry(isDark) {
   if (isDark) {
     return {
-      // 팔면체 — 뾰족한 별 실루엣
-      geometry: new THREE.OctahedronGeometry(0.62, 0),
-      material: flatMaterial(PALETTE.dark, {
-        emissive: PALETTE.darkEmissive,
-      }),
-      height: 1.5,
+      geometry: new THREE.BoxGeometry(1, 1, 1),
+      material: flatMaterial(PALETTE.dark, { emissive: PALETTE.darkEmissive }),
+      height: 1.4,
     };
   }
   return {
     geometry: new THREE.BoxGeometry(1, 1, 1),
-    material: flatMaterial(PALETTE.light, { emissive: '#050B1C' }),
-    height: 0.14,
+    material: flatMaterial(PALETTE.light, { emissive: '#0B1637' }),
+    height: 0.24,
   };
 }
 
@@ -72,7 +76,6 @@ export function getBackgroundSetup() {
 
   // 작은 행성이 우주에 떠 있는 구도이므로, 별을 상반구가 아니라
   // 씬을 감싸는 커다란 구(球) 전체에 고르게 뿌린다.
-  // (아이소메트릭 뷰에서 실제로 보이는 "하늘"은 지평선 아래쪽 배경이기도 하다.)
   for (let i = 0; i < 240; i += 1) {
     const u = rand() * 2 - 1; // cos(polar)
     const phi = rand() * Math.PI * 2;
@@ -93,45 +96,71 @@ export function getBackgroundSetup() {
 
   return {
     background: PALETTE.sky,
-    fog: { color: '#0D1B3E', near: 86, far: 215 },
+    fog: { color: '#263A79', near: 70, far: 175 },
     lights: [
-      { type: 'ambient', color: '#6B84C8', intensity: 1.35 },
+      { type: 'ambient', color: '#8CA2E0', intensity: 1.9 },
       {
         type: 'directional',
-        color: '#9FB6F0',
-        intensity: 1.1,
-        position: [26, 34, -18],
+        color: '#CFDBFF',
+        intensity: 1.5,
+        position: [26, 38, -18],
       },
-      { type: 'hemisphere', sky: '#2A3E78', ground: '#05091A', intensity: 0.8 },
+      { type: 'hemisphere', sky: '#5A72C4', ground: '#141F44', intensity: 1.0 },
     ],
-    objects: [
-      ...stars,
-      { type: 'moon', position: [64, 18, -132], scale: 8 },
-    ],
+    objects: [...stars, { type: 'moon', position: [64, 18, -132], scale: 8 }],
   };
 }
 
 export function placeDecorations(matrixSize) {
+  const rand = makeRandom(matrixSize * 37 + 11);
+  const specs = [];
+
+  // 작은 행성 위의 가로등 — 어린왕자의 가로등 켜는 별에서 온 모티브
   const [x, z] = ringPoint(matrixSize, -34, 7);
-  return [
-    {
-      // 작은 행성 가장자리에 선 어린왕자
-      type: 'princeOnPlanet',
-      position: [x, 0, z],
-      rotation: [0, 2.5, 0],
-      scale: 2.4,
-    },
-  ];
+  specs.push({
+    type: 'lampPlanet',
+    position: [x, 0, z],
+    rotation: [0, 2.5, 0],
+    scale: 2.2,
+  });
+
+  // 반대편에 떠 있는 작은 소행성
+  const [ax, az] = ringPoint(matrixSize, 128, 8);
+  specs.push({
+    type: 'asteroid',
+    position: [ax, 1.5, az],
+    rotation: [0.3, 0.8, 0.2],
+    scale: 1.6,
+  });
+
+  // 탑다운에서도 남는 낮은 풍경 — 바닥에 내려앉은 잔별
+  for (let i = 0; i < 30; i += 1) {
+    const angle = (360 / 30) * i + rand() * 8;
+    const [gx, gz] = squareRingPoint(matrixSize, angle, 1.2 + rand() * 4.8);
+    specs.push({
+      type: 'groundStar',
+      position: [gx, 0, gz],
+      rotation: [0, rand() * Math.PI, 0],
+      scale: 1.1 + rand() * 1.1,
+      persistent: true,
+    });
+  }
+
+  return specs;
 }
 
 export function buildDecoration(spec) {
   switch (spec.type) {
-    case 'princeOnPlanet':
-      return buildPrinceOnPlanet();
+    case 'lampPlanet':
+      return buildLampPlanet();
+    case 'asteroid':
+      return buildAsteroid();
     case 'farStar':
       return buildFarStar(spec.color || PALETTE.accent);
     case 'moon':
       return buildMoon();
+    case 'groundStar':
+      return buildGroundStar();
     default:
       return null;
   }
@@ -141,54 +170,56 @@ export function buildDecoration(spec) {
 /* 오브젝트                                                            */
 /* ------------------------------------------------------------------ */
 
-/**
- * 작은 행성 + 그 위에 선 어린왕자 실루엣.
- * 원작 삽화를 옮기지 않고, 페이퍼컷 실루엣처럼 단순화한 독자 형태.
- */
-function buildPrinceOnPlanet() {
-  // 밤하늘을 배경으로 하므로 어두운 실루엣 대신
-  // "달빛을 받은 페이퍼컷" 처럼 밝은 색으로 형태를 드러낸다.
-  const planetMat = flatMaterial('#2E4A85', { emissive: '#0A1330' });
-  const silhouette = glowMaterial('#C9D6F5', { transparent: false });
-  const scarfMat = glowMaterial('#F2C14E', { transparent: false });
-  const hairMat = glowMaterial('#F7DE9E', { transparent: false });
+/** 작은 행성 + 그 위에 켜진 가로등 (인물 없음) */
+function buildLampPlanet() {
+  const planetMat = flatMaterial('#41599E', { emissive: '#131E44' });
+  const postMat = flatMaterial('#D6DEF5');
+  const glassMat = glowMaterial('#FFE9A8', { opacity: 0.95, transparent: true });
+  const haloMat = glowMaterial('#FFD972', {
+    opacity: 0.18,
+    depthWrite: false,
+  });
 
   const planet = blob(2.0, 1, planetMat, [0, 0.9, 0]);
 
-  // 실루엣 인물: 다리 - 몸통 - 머리 - 머플러
-  const legs = group(
-    box(0.16, 0.6, 0.16, silhouette, [-0.13, 3.15, 0]),
-    box(0.16, 0.6, 0.16, silhouette, [0.13, 3.15, 0])
+  const post = cylinder(0.07, 0.1, 2.4, 6, postMat, [0, 3.9, 0]);
+  const foot = cylinder(0.24, 0.3, 0.16, 8, postMat, [0, 2.78, 0]);
+  const arm = box(0.62, 0.07, 0.07, postMat, [0.28, 5.06, 0]);
+
+  const lantern = group(
+    cone(0.26, 0.3, 6, postMat, [0.55, 5.14, 0]),
+    box(0.3, 0.34, 0.3, glassMat, [0.55, 4.79, 0]),
+    cone(0.2, 0.16, 6, postMat, [0.55, 4.55, 0])
   );
-  const body = cylinder(0.22, 0.36, 0.85, 7, silhouette, [0, 3.85, 0]);
-  const arms = group(
-    (() => {
-      const a = cylinder(0.08, 0.08, 0.6, 5, silhouette, [-0.34, 3.95, 0]);
-      a.rotation.z = 0.5;
-      return a;
-    })(),
-    (() => {
-      const a = cylinder(0.08, 0.08, 0.6, 5, silhouette, [0.34, 3.95, 0]);
-      a.rotation.z = -0.5;
-      return a;
-    })()
+
+  const halo = blob(0.85, 1, haloMat, [0.55, 4.8, 0]);
+
+  const flowers = group(
+    blob(
+      0.13,
+      0,
+      glowMaterial('#F5A8C0', { transparent: false }),
+      [1.15, 2.35, 0.5]
+    ),
+    blob(0.1, 0, glowMaterial('#F5A8C0', { transparent: false }), [-1.0, 2.3, -0.7])
   );
-  const head = blob(0.3, 1, silhouette, [0, 4.5, 0]);
-  const hair = blob(0.33, 0, hairMat, [0, 4.62, -0.02]);
 
-  const scarf = box(0.5, 0.12, 0.14, scarfMat, [0, 4.2, 0]);
-  const scarfTail = box(0.5, 0.1, 0.1, scarfMat, [-0.42, 4.06, 0]);
-  scarfTail.rotation.z = 0.5;
+  return group(planet, foot, post, arm, lantern, halo, flowers);
+}
 
-  const figure = group(legs, body, arms, head, hair, scarf, scarfTail);
-
-  return group(planet, figure);
+/** 떠 있는 작은 소행성 */
+function buildAsteroid() {
+  const rockMat = flatMaterial('#4C63A8', { emissive: '#141F44' });
+  const rock = blob(1.1, 0, rockMat, [0, 0, 0]);
+  rock.scale.set(1.2, 0.8, 1);
+  const cap = blob(0.42, 0, flatMaterial('#7C92D6'), [0.3, 0.7, -0.2]);
+  return group(rock, cap);
 }
 
 function buildFarStar(color) {
   const mesh = new THREE.Mesh(
     new THREE.OctahedronGeometry(0.5, 0),
-    glowMaterial(color, { opacity: 0.85, depthWrite: false })
+    glowMaterial(color, { opacity: 0.9, depthWrite: false })
   );
   return group(mesh);
 }
@@ -196,17 +227,26 @@ function buildFarStar(color) {
 function buildMoon() {
   const disc = new THREE.Mesh(
     new THREE.CircleGeometry(1, 28),
-    glowMaterial('#F6EFD8', { opacity: 0.95 })
+    glowMaterial('#FBF3DC', { opacity: 0.97 })
   );
   const halo = new THREE.Mesh(
     new THREE.CircleGeometry(1.7, 28),
-    glowMaterial('#F2C14E', { opacity: 0.14, depthWrite: false })
+    glowMaterial('#FFD972', { opacity: 0.16, depthWrite: false })
   );
   halo.position.z = -0.05;
 
   const g = group(halo, disc);
   g.userData.billboard = true;
   return g;
+}
+
+/** 탑다운에서도 남는, 바닥에 내려앉은 잔별 */
+function buildGroundStar() {
+  const mat = glowMaterial('#FFD972', { opacity: 0.85, transparent: true });
+  const star = new THREE.Mesh(new THREE.OctahedronGeometry(0.34, 0), mat);
+  star.scale.set(1, 0.5, 1);
+  star.position.y = 0.16;
+  return group(star);
 }
 
 export default {

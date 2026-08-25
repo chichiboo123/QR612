@@ -46,7 +46,7 @@ export function createShareButton({ getState, onMessage }) {
   button.className = 'btn btn-secondary btn--block';
   button.disabled = true;
   button.innerHTML = `
-    <span class="material-icons-outlined">ios_share</span>
+    <span class="material-icons-outlined" aria-hidden="true">ios_share</span>
     공유 링크 복사
   `;
 
@@ -58,7 +58,11 @@ export function createShareButton({ getState, onMessage }) {
 
     try {
       if (navigator.share) {
-        await navigator.share({ title: 'QR612', text: 'QR612로 만든 QR코드', url: link });
+        await navigator.share({
+          title: 'QR612',
+          text: 'QR612로 만든 QR코드',
+          url: link,
+        });
         return;
       }
       await navigator.clipboard.writeText(link);

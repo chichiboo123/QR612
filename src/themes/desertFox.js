@@ -17,6 +17,7 @@ import {
   blob,
   group,
   ringPoint,
+  squareRingPoint,
   makeRandom,
 } from './_shared.js';
 
@@ -24,19 +25,24 @@ export const meta = {
   id: 'desert-fox',
   label: '사막과 여우',
   caption: '사구를 넘는 발자국',
-  swatch: ['#E8896B', '#E8D5B5', '#B4643F'],
+  swatch: ['#F2A583', '#F6E6C8', '#FFD9A8'],
 };
 
 const PALETTE = {
-  dark: '#E8896B', // 사구 능선 — 선셋오렌지
-  darkEmissive: '#3A1509',
-  light: '#E8D5B5', // 그늘진 모래 — 샌드베이지
-  ground: '#E3CFAC',
-  groundEmissive: '#241A0C',
-  sky: '#F6C9A8',
-  accent: '#B4643F',
-  scanDark: '#241108',
-  scanLight: '#FCF7EE',
+  /* 3D 씬 */
+  dark: '#F2A583', // 사구 능선 — 밝은 선셋오렌지
+  darkEmissive: '#4A2010',
+  light: '#F6E6C8', // 볕 드는 모래 — 샌드베이지
+  ground: '#F0DCB8',
+  groundEmissive: '#2E2211',
+  sky: '#FFD9B0',
+  accent: '#FFB577',
+
+  /* 탑다운 스캔 뷰 (대비 7.5:1) */
+  scanDark: '#71361B',
+  scanLight: '#FEF6E7',
+  scanGround: '#EED9B2',
+  scanShadow: '#B98A5C',
 };
 
 export function getPalette() {
@@ -50,36 +56,34 @@ export function getCurvature() {
 export function getBlockGeometry(isDark) {
   if (isDark) {
     return {
-      // 살짝 기울어진 사구 능선처럼 보이도록 윗면을 좁힌 사각 기둥
-      geometry: new THREE.CylinderGeometry(0.55, 1, 1, 4, 1),
+      // 정사각 밑면 — 탑다운에서 모듈이 정확히 맞물리도록
+      geometry: new THREE.BoxGeometry(1, 1, 1),
       material: flatMaterial(PALETTE.dark, { emissive: PALETTE.darkEmissive }),
-      height: 2.3,
+      height: 1.9,
     };
   }
   return {
-    geometry: new THREE.CylinderGeometry(0.9, 1, 1, 4, 1),
+    geometry: new THREE.BoxGeometry(1, 1, 1),
     material: flatMaterial(PALETTE.light),
-    height: 0.8,
+    height: 0.7,
   };
 }
 
 export function getBackgroundSetup() {
   return {
     background: PALETTE.sky,
-    fog: { color: '#F0B48C', near: 88, far: 235 },
+    fog: { color: '#FFD9B0', near: 70, far: 175 },
     lights: [
-      { type: 'hemisphere', sky: '#FFDDBB', ground: '#8A5A38', intensity: 1.6 },
+      { type: 'hemisphere', sky: '#FFEBD3', ground: '#B98A5C', intensity: 2.0 },
       {
         type: 'directional',
-        color: '#FFD1A1',
-        intensity: 2.4,
-        position: [48, 20, -34],
+        color: '#FFE3C2',
+        intensity: 2.5,
+        position: [48, 26, -34],
       },
-      { type: 'ambient', color: '#E8A883', intensity: 0.55 },
+      { type: 'ambient', color: '#FFCFA6', intensity: 0.85 },
     ],
-    objects: [
-      { type: 'sunset', position: [56, 8, -108], scale: 11 },
-    ],
+    objects: [{ type: 'sunset', position: [56, 8, -108], scale: 11 }],
   };
 }
 
@@ -105,19 +109,34 @@ export function placeDecorations(matrixSize) {
     scale: 2.4,
   });
 
-  // 우물 → 여우로 이어지는 발자국 트레일 (절차적)
-  const steps = 22;
+  // 우물 → 여우로 이어지는 발자국 트레일 (절차적).
+  // QR 판 바깥 정사각 링을 따라 이어지므로 탑다운 뷰에서도 그대로 남는다.
+  const steps = 34;
   for (let i = 0; i < steps; i += 1) {
     const t = i / (steps - 1);
     const angle = -118 + (152 + 118) * t;
-    const wobble = (rand() - 0.5) * 1.6;
-    const [px, pz] = ringPoint(matrixSize, angle, 6.4 + wobble);
+    const wobble = (rand() - 0.5) * 2.2;
+    const [px, pz] = squareRingPoint(matrixSize, angle, 2.4 + wobble);
     specs.push({
       type: 'footprint',
       position: [px, 0.02, pz],
       rotation: [0, (angle * Math.PI) / 180 + (rand() - 0.5) * 0.4, 0],
-      scale: 0.55 + rand() * 0.2,
+      scale: 1.0 + rand() * 0.4,
       side: i % 2 === 0 ? 1 : -1,
+      persistent: true,
+    });
+  }
+
+  // 사구 사이의 마른 덤불 — 탑다운에서도 남는다
+  for (let i = 0; i < 16; i += 1) {
+    const angle = (360 / 16) * i + rand() * 12;
+    const [bx, bz] = squareRingPoint(matrixSize, angle, 1.3 + rand() * 4.6);
+    specs.push({
+      type: 'bush',
+      position: [bx, 0, bz],
+      rotation: [0, rand() * Math.PI * 2, 0],
+      scale: 1.4 + rand() * 1.0,
+      persistent: true,
     });
   }
 
@@ -134,6 +153,8 @@ export function buildDecoration(spec) {
       return buildFootprint(spec.side ?? 1);
     case 'sunset':
       return buildSunset();
+    case 'bush':
+      return buildBush();
     default:
       return null;
   }
@@ -145,9 +166,9 @@ export function buildDecoration(spec) {
 
 /** 로우폴리 여우 실루엣 — 원작 삽화가 아닌 독자적인 단순 형태 */
 function buildFox() {
-  const furMat = flatMaterial('#C4622F', { emissive: '#2A0E03' });
-  const bellyMat = flatMaterial('#F2DCC0');
-  const tipMat = flatMaterial('#3A2418');
+  const furMat = flatMaterial('#E07A3C', { emissive: '#3A1607' });
+  const bellyMat = flatMaterial('#FFF0DC');
+  const tipMat = flatMaterial('#5A3A26');
 
   const body = cylinder(0.34, 0.44, 1.0, 6, furMat, [0, 0.72, 0]);
   body.rotation.x = Math.PI / 2;
@@ -186,16 +207,13 @@ function buildFox() {
 
 /** 사막의 작은 우물 */
 function buildWell() {
-  const stoneMat = flatMaterial('#B9A88C', { emissive: '#1A150E' });
-  const woodMat = flatMaterial('#8A6440');
-  const waterMat = flatMaterial('#4C89A8', { emissive: '#0A2230' });
-  const ropeMat = flatMaterial('#D8C49B');
+  const stoneMat = flatMaterial('#D3C2A4', { emissive: '#241E14' });
+  const woodMat = flatMaterial('#A67A50');
+  const waterMat = flatMaterial('#6BA8C4', { emissive: '#123040' });
+  const ropeMat = flatMaterial('#EEDDB6');
 
   const wall = cylinder(0.8, 0.9, 0.7, 10, stoneMat, [0, 0.35, 0]);
-  const water = new THREE.Mesh(
-    new THREE.CircleGeometry(0.7, 12),
-    waterMat
-  );
+  const water = new THREE.Mesh(new THREE.CircleGeometry(0.7, 12), waterMat);
   water.rotation.x = -Math.PI / 2;
   water.position.y = 0.55;
 
@@ -217,9 +235,9 @@ function buildWell() {
 
 /** 발자국 — 바닥에 살짝 눌린 타원 자국 */
 function buildFootprint(side) {
-  const mat = flatMaterial('#C7AC85', {
+  const mat = flatMaterial('#D9BC90', {
     transparent: true,
-    opacity: 0.75,
+    opacity: 0.8,
   });
   const pad = new THREE.Mesh(new THREE.CircleGeometry(0.32, 10), mat);
   pad.rotation.x = -Math.PI / 2;
@@ -231,6 +249,23 @@ function buildFootprint(side) {
   toe.position.set(0.28 * side, 0, 0.34);
 
   return group(pad, toe);
+}
+
+/** 탑다운에서도 남는 마른 덤불 */
+function buildBush() {
+  const mat = flatMaterial('#C08A55');
+  const g = group();
+  for (const [bx, bz, tilt, h] of [
+    [0, 0, 0, 0.55],
+    [0.18, 0.1, 0.4, 0.42],
+    [-0.16, -0.08, -0.36, 0.38],
+    [0.05, -0.18, 0.15, 0.3],
+  ]) {
+    const twig = cone(0.08, h, 4, mat, [bx, h / 2, bz]);
+    twig.rotation.z = tilt;
+    g.add(twig);
+  }
+  return g;
 }
 
 function buildSunset() {

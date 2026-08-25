@@ -17,6 +17,7 @@ import {
   blob,
   group,
   ringPoint,
+  squareRingPoint,
   makeRandom,
 } from './_shared.js';
 
@@ -24,19 +25,24 @@ export const meta = {
   id: 'rose',
   label: '장미',
   caption: '유리돔 속 정원',
-  swatch: ['#E8A0B4', '#1F3D2E', '#F5E1E7'],
+  swatch: ['#F2B3C5', '#3E7A5A', '#FFF0F4'],
 };
 
 const PALETTE = {
-  dark: '#E8A0B4', // 꽃잎빛 타일
-  darkEmissive: '#3A1420',
-  light: '#28513C', // 잎사귀빛 타일
-  ground: '#1F3D2E', // 미드나잇그린 정원 바닥
-  groundEmissive: '#050D09',
-  sky: '#132A20',
-  accent: '#F5E1E7',
-  scanDark: '#160B10',
-  scanLight: '#FAF4F6',
+  /* 3D 씬 */
+  dark: '#F2B3C5', // 꽃잎빛 타일
+  darkEmissive: '#4A1F2C',
+  light: '#4E8F6C', // 잎사귀빛 타일
+  ground: '#3E7A5A', // 밝힌 미드나잇그린 정원 바닥
+  groundEmissive: '#0C1D14',
+  sky: '#2F5F46',
+  accent: '#FFF0F4',
+
+  /* 탑다운 스캔 뷰 (대비 9.5:1) */
+  scanDark: '#6E2540',
+  scanLight: '#FDF1F4',
+  scanGround: '#5E9E7A',
+  scanShadow: '#2E5B44',
 };
 
 export function getPalette() {
@@ -50,37 +56,36 @@ export function getCurvature() {
 export function getBlockGeometry(isDark) {
   if (isDark) {
     return {
-      // 살짝 모따기한 정사각 타일 기둥
-      geometry: new THREE.CylinderGeometry(0.92, 0.98, 1, 8, 1),
+      // 정사각 밑면 — 탑다운에서 모듈이 정확히 맞물리도록
+      geometry: new THREE.BoxGeometry(1, 1, 1),
       material: flatMaterial(PALETTE.dark, { emissive: PALETTE.darkEmissive }),
-      height: 1.7,
+      height: 1.5,
     };
   }
   return {
-    // 낮은 원형 타일
-    geometry: new THREE.CylinderGeometry(0.86, 0.86, 1, 12, 1),
-    material: flatMaterial(PALETTE.light, { emissive: '#04100A' }),
-    height: 0.4,
+    geometry: new THREE.BoxGeometry(1, 1, 1),
+    material: flatMaterial(PALETTE.light, { emissive: '#0C2317' }),
+    height: 0.42,
   };
 }
 
 export function getBackgroundSetup() {
   return {
     background: PALETTE.sky,
-    fog: { color: '#163325', near: 92, far: 245 },
+    fog: { color: '#2F5F46', near: 70, far: 175 },
     lights: [
-      { type: 'hemisphere', sky: '#F5CBD8', ground: '#12291D', intensity: 1.3 },
+      { type: 'hemisphere', sky: '#FFE0EA', ground: '#2E5B44', intensity: 1.8 },
       {
         type: 'directional',
-        color: '#FFE9F0',
-        intensity: 2.0,
-        position: [-22, 40, 26],
+        color: '#FFF4F8',
+        intensity: 2.3,
+        position: [-22, 44, 26],
       },
-      { type: 'ambient', color: '#8FA9A0', intensity: 0.6 },
+      { type: 'ambient', color: '#CFE0D8', intensity: 0.95 },
       {
         type: 'point',
-        color: '#F7B8C8',
-        intensity: 180,
+        color: '#FFCBDA',
+        intensity: 200,
         distance: 90,
         position: [0, 12, 0],
       },
@@ -108,15 +113,17 @@ export function placeDecorations(matrixSize) {
     scale: 1.9,
   });
 
-  // 정원 가장자리를 도는 작은 새싹들
-  for (let i = 0; i < 9; i += 1) {
-    const angle = (360 / 9) * i + rand() * 12;
-    const [sx, sz] = ringPoint(matrixSize, angle, 2.8 + rand() * 1.4);
+  // 정원 가장자리를 도는 작은 새싹과 떨어진 꽃잎 —
+  // QR 판 바깥 정사각 링 위에 두어 탑다운 뷰에서도 그대로 남는다.
+  for (let i = 0; i < 28; i += 1) {
+    const angle = (360 / 28) * i + rand() * 9;
+    const [sx, sz] = squareRingPoint(matrixSize, angle, 1.3 + rand() * 4.6);
     specs.push({
-      type: 'sprout',
+      type: rand() > 0.4 ? 'sprout' : 'petal',
       position: [sx, 0, sz],
-      rotation: [0, rand() * Math.PI, 0],
-      scale: 0.9 + rand() * 0.5,
+      rotation: [0, rand() * Math.PI * 2, 0],
+      scale: 1.6 + rand() * 1.1,
+      persistent: true,
     });
   }
 
@@ -135,6 +142,8 @@ export function buildDecoration(spec) {
       return buildGardenFloor();
     case 'sprout':
       return buildSprout();
+    case 'petal':
+      return buildPetal();
     default:
       return null;
   }
@@ -146,10 +155,10 @@ export function buildDecoration(spec) {
 
 /** 로우폴리 장미 한 송이 */
 function buildRose() {
-  const stemMat = flatMaterial('#2F6B45', { emissive: '#061109' });
-  const leafMat = flatMaterial('#3E8A56');
-  const petalOuter = flatMaterial('#E8A0B4', { emissive: '#3A1420' });
-  const petalInner = flatMaterial('#C95F7D', { emissive: '#2A0A14' });
+  const stemMat = flatMaterial('#3F8A5A', { emissive: '#0C1D12' });
+  const leafMat = flatMaterial('#5AA875');
+  const petalOuter = flatMaterial('#F7C2D2', { emissive: '#4A1F2C' });
+  const petalInner = flatMaterial('#E88AA6', { emissive: '#3A1420' });
 
   const stem = cylinder(0.055, 0.08, 2.6, 6, stemMat, [0, 1.3, 0]);
 
@@ -166,33 +175,60 @@ function buildRose() {
     leaves.add(leaf);
   }
 
-  // 꽃받침 + 겹쳐진 꽃잎
-  const calyx = cone(0.24, 0.34, 6, stemMat, [0, 2.6, 0]);
+  // 꽃받침 + 겹쳐진 꽃잎 (원뿔을 눕혀 겹치는 로우폴리 방식)
+  const calyx = cone(0.26, 0.34, 6, stemMat, [0, 2.62, 0]);
   const bloom = group();
   const rings = [
-    { r: 0.44, y: 2.86, count: 6, tilt: 0.85, mat: petalOuter },
-    { r: 0.32, y: 3.0, count: 5, tilt: 0.55, mat: petalOuter },
-    { r: 0.2, y: 3.12, count: 4, tilt: 0.3, mat: petalInner },
+    {
+      r: 0.34,
+      y: 2.84,
+      count: 7,
+      tilt: 1.15,
+      size: 0.3,
+      len: 0.62,
+      mat: petalOuter,
+    },
+    {
+      r: 0.22,
+      y: 3.0,
+      count: 5,
+      tilt: 0.72,
+      size: 0.24,
+      len: 0.5,
+      mat: petalOuter,
+    },
+    {
+      r: 0.12,
+      y: 3.12,
+      count: 4,
+      tilt: 0.34,
+      size: 0.18,
+      len: 0.38,
+      mat: petalInner,
+    },
   ];
   for (const ring of rings) {
     for (let i = 0; i < ring.count; i += 1) {
-      const a = ((Math.PI * 2) / ring.count) * i + ring.r;
-      const petal = new THREE.Mesh(new THREE.CircleGeometry(0.34, 5), ring.mat);
-      petal.material.side = THREE.DoubleSide;
-      petal.position.set(Math.sin(a) * ring.r, ring.y, Math.cos(a) * ring.r);
-      petal.rotation.set(-ring.tilt, a, 0);
+      const a = ((Math.PI * 2) / ring.count) * i + ring.r * 3;
+      const petal = cone(ring.size, ring.len, 5, ring.mat, [
+        Math.sin(a) * ring.r,
+        ring.y,
+        Math.cos(a) * ring.r,
+      ]);
+      petal.rotation.set(Math.sin(a) * ring.tilt, -a, -Math.cos(a) * ring.tilt);
+      petal.scale.set(1, 1, 0.55);
       bloom.add(petal);
     }
   }
-  const core = blob(0.14, 0, petalInner, [0, 3.18, 0]);
+  const core = cone(0.13, 0.26, 5, petalInner, [0, 3.2, 0]);
 
   return group(stem, leaves, calyx, bloom, core);
 }
 
 /** 작은 물뿌리개 */
 function buildWateringCan() {
-  const metalMat = flatMaterial('#9FB8C4', { emissive: '#101A1E' });
-  const trimMat = flatMaterial('#E8A0B4');
+  const metalMat = flatMaterial('#C2D6DF', { emissive: '#1A2529' });
+  const trimMat = flatMaterial('#F2B3C5');
 
   const body = cylinder(0.42, 0.5, 0.75, 10, metalMat, [0, 0.4, 0]);
   const rim = cylinder(0.46, 0.46, 0.08, 10, trimMat, [0, 0.8, 0]);
@@ -215,10 +251,10 @@ function buildWateringCan() {
 /** 반투명 유리돔 실루엣 */
 function buildGlassDome() {
   const glassMat = new THREE.MeshLambertMaterial({
-    color: new THREE.Color('#CFE6DA'),
-    emissive: new THREE.Color('#0E2018'),
+    color: new THREE.Color('#E8F6EE'),
+    emissive: new THREE.Color('#1A3327'),
     transparent: true,
-    opacity: 0.16,
+    opacity: 0.14,
     side: THREE.DoubleSide,
     depthWrite: false,
     flatShading: false,
@@ -231,10 +267,7 @@ function buildGlassDome() {
   dome.scale.set(1, 0.78, 1);
 
   const rimMat = flatMaterial('#D6A9B8', { emissive: '#2A1119' });
-  const rim = new THREE.Mesh(
-    new THREE.TorusGeometry(1, 0.018, 6, 40),
-    rimMat
-  );
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(1, 0.018, 6, 40), rimMat);
   rim.rotation.x = Math.PI / 2;
   rim.position.y = 0.02;
 
@@ -243,15 +276,12 @@ function buildGlassDome() {
 
 /** 원형 정원 바닥 */
 function buildGardenFloor() {
-  const mat = flatMaterial('#173025', { emissive: '#040A07' });
+  const mat = flatMaterial('#356B4E', { emissive: '#0A1610' });
   const disc = new THREE.Mesh(new THREE.CircleGeometry(1, 48), mat);
   disc.rotation.x = -Math.PI / 2;
 
-  const edgeMat = flatMaterial('#3C6B51');
-  const edge = new THREE.Mesh(
-    new THREE.RingGeometry(0.98, 1.02, 48),
-    edgeMat
-  );
+  const edgeMat = flatMaterial('#7FC49B');
+  const edge = new THREE.Mesh(new THREE.RingGeometry(0.98, 1.02, 48), edgeMat);
   edge.material.side = THREE.DoubleSide;
   edge.rotation.x = -Math.PI / 2;
   edge.position.y = 0.01;
@@ -259,18 +289,32 @@ function buildGardenFloor() {
   return group(disc, edge);
 }
 
-function buildSprout() {
-  const mat = flatMaterial('#4E9463');
-  const stem = cylinder(0.03, 0.04, 0.5, 5, mat, [0, 0.25, 0]);
-  const leafA = new THREE.Mesh(new THREE.CircleGeometry(0.18, 5), mat);
-  leafA.material.side = THREE.DoubleSide;
-  leafA.position.set(0.12, 0.48, 0);
-  leafA.rotation.set(-1.1, 0.4, 0);
-  const leafB = leafA.clone();
-  leafB.position.set(-0.12, 0.44, 0.04);
-  leafB.rotation.set(-1.1, -0.6, 0);
+/** 탑다운에서도 남는, 바닥에 떨어진 꽃잎 */
+function buildPetal() {
+  const mat = flatMaterial('#F5C2D0', { transparent: true, opacity: 0.9 });
+  const petal = new THREE.Mesh(new THREE.CircleGeometry(0.3, 6), mat);
+  petal.material.side = THREE.DoubleSide;
+  petal.rotation.x = -Math.PI / 2;
+  petal.scale.set(1, 0.62, 1);
+  petal.position.y = 0.05;
+  return group(petal);
+}
 
-  return group(stem, leafA, leafB);
+function buildSprout() {
+  const mat = flatMaterial('#6FBF87');
+  const g = group();
+  for (const [bx, bz, tilt, h] of [
+    [0, 0, 0, 0.5],
+    [0.15, 0.07, 0.42, 0.38],
+    [-0.14, -0.06, -0.38, 0.34],
+    [0.04, -0.16, 0.18, 0.28],
+  ]) {
+    const leaf = cone(0.1, h, 4, mat, [bx, h / 2, bz]);
+    leaf.rotation.z = tilt;
+    leaf.scale.set(1, 1, 0.6);
+    g.add(leaf);
+  }
+  return g;
 }
 
 export default {

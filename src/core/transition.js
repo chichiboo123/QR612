@@ -38,7 +38,7 @@ export function easeInOutCubic(t) {
 export const TRANSITION = {
   /** 3D 뷰 카메라 */
   fov3d: 42,
-  elevation3d: 31, // 지평선 기준 올려본 각도(도)
+  elevation3d: 36, // 지평선 기준 올려본 각도(도)
   azimuth3d: 45, // 아이소메트릭 느낌의 사선 방위각(도)
 
   /**
@@ -58,13 +58,16 @@ export const TRANSITION = {
   darkHeight2d: 0.3,
   lightHeight2d: 0.08,
 
-  /** 장식 오브젝트 페이드아웃 구간 */
-  decorFadeStart: 0.02,
-  decorFadeEnd: 0.42,
+  /**
+   * 큰 장식(나무·화산·우물 등) 페이드아웃 구간.
+   * 카메라가 천천히 떠오르는 느낌이 나도록 예전보다 늦게 사라진다.
+   */
+  decorFadeStart: 0.18,
+  decorFadeEnd: 0.62,
 
-  /** 색상 평탄화(조명 무시, 순수 스캔 색상) 구간 */
-  flattenStart: 0.5,
-  flattenEnd: 0.97,
+  /** 테마 색상 → 스캔 색상으로 수렴하는 구간 */
+  flattenStart: 0.45,
+  flattenEnd: 0.9,
 
   /** 블록 XZ 스케일이 1.0 으로 닫히는 구간 */
   tightenStart: 0.3,
@@ -75,12 +78,12 @@ export const TRANSITION = {
   flattenCurveEnd: 0.72,
 
   /**
-   * 스캔 보장 오버레이가 페이드인되는 구간.
-   * 마지막 순간에 "정확히 1×1 모듈, 순수 흑백" 평면을 겹쳐 올려
-   * 테마가 어떤 지오메트리를 쓰든 스캔 성공률을 보장한다.
+   * 스캔 카드(정확히 1×1 모듈로 이루어진 테마 색상 QR 판)가 페이드인되는 구간.
+   * 아래에 깔린 테마 블록도 같은 스캔 색상 · 같은 조명으로 수렴하므로
+   * 교체되는 순간이 눈에 띄지 않는다.
    */
-  scanOverlayStart: 0.86,
-  scanOverlayEnd: 1.0,
+  scanOverlayStart: 0.62,
+  scanOverlayEnd: 0.93,
 
   /** 전환 소요 시간(초) */
   duration: 1.15,
@@ -199,9 +202,11 @@ export function computeTransitionState(progress, ctx) {
   const elevation = lerp(TRANSITION.elevation3d, TRANSITION.elevation2d, t);
   const azimuth = lerp(TRANSITION.azimuth3d, TRANSITION.azimuth2d, t);
 
-  // 3D 에서는 장식까지 담을 여유를, 2D 에서는 QR + quiet zone 만 정확히 담는다.
+  // 3D 에서는 장식까지 담을 여유를,
+  // 2D 에서는 QR 판 + 그 바깥 풍경이 살짝 보이도록 여백을 남긴다.
+  // (탑다운 뷰가 "검은 QR" 이 아니라 "위에서 본 풍경" 으로 읽히게 하는 핵심)
   const halfSpan3d = matrixSize * 0.72 + 7;
-  const halfSpan2d = matrixSize / 2 + quietZone + 1.6;
+  const halfSpan2d = matrixSize / 2 + quietZone + 7.5;
   const halfSpan = lerp(halfSpan3d, halfSpan2d, t);
   const distance = fitDistance(fov, aspect, halfSpan);
 
@@ -222,12 +227,7 @@ export function computeTransitionState(progress, ctx) {
 
   const bend =
     curvature *
-    (1 -
-      smoothstep(
-        TRANSITION.flattenCurveStart,
-        TRANSITION.flattenCurveEnd,
-        p
-      ));
+    (1 - smoothstep(TRANSITION.flattenCurveStart, TRANSITION.flattenCurveEnd, p));
 
   return {
     progress: p,
@@ -244,6 +244,12 @@ export function computeTransitionState(progress, ctx) {
     bend,
     /** 안개를 걷어내는 정도 (전환 초반에 먼저 사라져 QR 대비를 지킨다) */
     fogRelease: smoothstep(0.08, 0.55, p),
+    /**
+     * 스캔 조명 리그의 세기.
+     * 스캔 뷰에서도 조명을 완전히 끄지 않고 부드러운 톱라이트를 유지해
+     * 타일이 종이가 아니라 낮은 복셀 블록처럼 보이게 한다.
+     */
+    scanLighting: smoothstep(0.4, 0.9, p),
     /** 스캔 보장 오버레이 불투명도 */
     scanOverlay: smoothstep(
       TRANSITION.scanOverlayStart,

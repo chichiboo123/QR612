@@ -14,7 +14,7 @@ export function createThemePicker({ themes, value, onChange }) {
   section.className = 'panel';
   section.innerHTML = `
     <h2 class="panel__title">
-      <span class="material-icons-outlined">palette</span>
+      <span class="material-icons-outlined" aria-hidden="true">palette</span>
       테마 선택
     </h2>
     <div class="theme-picker" role="radiogroup" aria-label="QR코드 테마"></div>
@@ -29,6 +29,8 @@ export function createThemePicker({ themes, value, onChange }) {
     card.className = 'theme-card';
     card.setAttribute('role', 'radio');
     card.setAttribute('aria-checked', String(theme.id === value));
+    // roving tabindex — 라디오 그룹은 탭 정지점이 하나여야 한다
+    card.tabIndex = theme.id === value ? 0 : -1;
     card.dataset.themeId = theme.id;
 
     const [a, b, c] = theme.swatch;
@@ -37,7 +39,7 @@ export function createThemePicker({ themes, value, onChange }) {
         linear-gradient(160deg, ${b} 0%, ${b} 46%, ${a} 46%, ${a} 100%);"></span>
       <span class="theme-card__name">${theme.label}</span>
       <span class="theme-card__caption">${theme.caption}</span>
-      <span class="theme-card__check"><span class="material-icons-outlined">check</span></span>
+      <span class="theme-card__check"><span class="material-icons-outlined" aria-hidden="true">check</span></span>
     `;
 
     const thumb = card.querySelector('.theme-card__thumb');
@@ -54,16 +56,23 @@ export function createThemePicker({ themes, value, onChange }) {
     list.appendChild(card);
   }
 
-  function select(themeId) {
+  function markSelected(themeId) {
     for (const [id, card] of cards) {
-      card.setAttribute('aria-checked', String(id === themeId));
+      const selected = id === themeId;
+      card.setAttribute('aria-checked', String(selected));
+      card.tabIndex = selected ? 0 : -1;
     }
+  }
+
+  function select(themeId) {
+    markSelected(themeId);
     onChange(themeId);
   }
 
   // 좌우 방향키로 테마 이동 (라디오 그룹 접근성)
   list.addEventListener('keydown', (e) => {
-    if (!['ArrowRight', 'ArrowLeft', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
+    if (!['ArrowRight', 'ArrowLeft', 'ArrowUp', 'ArrowDown'].includes(e.key))
+      return;
     e.preventDefault();
 
     const ids = [...cards.keys()];
@@ -79,10 +88,6 @@ export function createThemePicker({ themes, value, onChange }) {
 
   return {
     element: section,
-    setValue(themeId) {
-      for (const [id, card] of cards) {
-        card.setAttribute('aria-checked', String(id === themeId));
-      }
-    },
+    setValue: markSelected,
   };
 }

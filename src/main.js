@@ -17,13 +17,19 @@ import {
   readShareParams,
   syncAddressBar,
 } from './ui/shareButton.js';
+import { createDownloadButton } from './ui/downloadButton.js';
 import { createFooter } from './ui/footer.js';
 import { createCredits } from './ui/credits.js';
+
+/** 처음 들어온 사람이 바로 결과를 볼 수 있도록 하는 예시 주소 */
+const DEMO_URL = 'https://litt.ly/chichiboo';
 
 const state = {
   url: '',
   themeId: DEFAULT_THEME_ID,
   qr: null,
+  /** 사용자가 직접 생성한 적이 있는지 (예시 상태에서는 주소창을 건드리지 않는다) */
+  userGenerated: false,
 };
 
 const shared = readShareParams();
@@ -57,7 +63,7 @@ stage.dataset.ready = 'false';
 stage.innerHTML = `
   <div class="stage__canvas"></div>
   <div class="stage__empty">
-    <span class="material-icons-outlined">travel_explore</span>
+    <span class="material-icons-outlined" aria-hidden="true">travel_explore</span>
     <p>주소를 입력하고 <strong>생성하기</strong>를 누르면<br />어린왕자의 장면이 나타납니다.</p>
   </div>
   <span class="stage__badge" hidden></span>
@@ -77,7 +83,10 @@ stageColumn.append(stage, notice);
 
 const urlInput = createUrlInput({
   initialValue: shared.url,
-  onSubmit: (url) => generate(url, state.themeId),
+  onSubmit: (url) => {
+    state.userGenerated = true;
+    generate(url, state.themeId);
+  },
 });
 
 const themePicker = createThemePicker({
@@ -87,7 +96,7 @@ const themePicker = createThemePicker({
     state.themeId = themeId;
     if (state.url) {
       applyTheme(themeId);
-      syncAddressBar(state.url, themeId);
+      if (state.userGenerated) syncAddressBar(state.url, themeId);
     }
   },
 });
@@ -96,7 +105,7 @@ const actions = document.createElement('section');
 actions.className = 'panel';
 actions.innerHTML = `
   <h2 class="panel__title">
-    <span class="material-icons-outlined">share</span>
+    <span class="material-icons-outlined" aria-hidden="true">share</span>
     보기 &amp; 공유
   </h2>
   <div class="btn-group"></div>
@@ -116,7 +125,15 @@ const shareButton = createShareButton({
   onMessage: setActionMessage,
 });
 
-actions.querySelector('.btn-group').append(viewToggle, shareButton.element);
+const downloadButton = createDownloadButton({
+  getState: () => (engine && state.qr ? { engine, themeId: state.themeId } : null),
+  onMessage: setActionMessage,
+});
+
+viewToggle.classList.add('btn-group__wide');
+actions
+  .querySelector('.btn-group')
+  .append(viewToggle, shareButton.element, downloadButton.element);
 
 urlInput.element.classList.add('panel--url');
 themePicker.element.classList.add('panel--theme');
@@ -136,7 +153,7 @@ try {
 } catch (error) {
   console.error('[QR612] WebGL 초기화 실패', error);
   stage.querySelector('.stage__empty').innerHTML = `
-    <span class="material-icons-outlined">error_outline</span>
+    <span class="material-icons-outlined" aria-hidden="true">error_outline</span>
     <p>이 브라우저에서는 3D 장면을 표시할 수 없습니다.<br />WebGL 지원 브라우저에서 다시 열어 주세요.</p>
   `;
 }
@@ -169,14 +186,23 @@ function generate(url, themeId) {
     hint.hidden = false;
     viewToggle.disabled = false;
     shareButton.setEnabled(true);
+    downloadButton.setEnabled(true);
 
     updateViewLabels(0);
-    urlInput.setMessage(
-      `QR 버전 ${qr.version} · ${qr.size}×${qr.size} 모듈 · 에러 정정 ${qr.errorCorrectionLevel}`,
-      'success'
-    );
+
+    const summary = `QR 버전 ${qr.version} · ${qr.size}×${qr.size} 모듈 · 에러 정정 ${qr.errorCorrectionLevel}`;
+    if (qr.version >= 12) {
+      // 모듈이 촘촘해질수록 작은 화면에서 스캔이 어려워진다
+      urlInput.setMessage(
+        `${summary} — 주소가 길어 모듈이 촘촘합니다. 짧은 주소를 쓰면 더 잘 읽힙니다.`,
+        'warning'
+      );
+    } else {
+      urlInput.setMessage(summary, 'success');
+    }
+
     setActionMessage('');
-    syncAddressBar(url, themeId);
+    if (state.userGenerated) syncAddressBar(url, themeId);
   } catch (error) {
     console.error('[QR612] QR 생성 실패', error);
     urlInput.setMessage(
@@ -200,22 +226,22 @@ function updateViewLabels(target) {
   stage.dataset.view = scanView ? 'scan' : 'scene';
 
   badge.innerHTML = scanView
-    ? '<span class="material-icons-outlined">qr_code_2</span> 스캔 뷰'
-    : `<span class="material-icons-outlined">deblur</span> ${theme.label}`;
+    ? '<span class="material-icons-outlined" aria-hidden="true">qr_code_2</span> 스캔 뷰'
+    : `<span class="material-icons-outlined" aria-hidden="true">deblur</span> ${theme.label}`;
 
   hint.innerHTML = scanView
-    ? '<span class="material-icons-outlined">3d_rotation</span> 탭하여 3D 장면으로 돌아가기'
-    : '<span class="material-icons-outlined">qr_code_scanner</span> 탭하여 QR코드 보기';
+    ? '<span class="material-icons-outlined" aria-hidden="true">3d_rotation</span> 탭하여 3D 장면으로 돌아가기'
+    : '<span class="material-icons-outlined" aria-hidden="true">qr_code_scanner</span> 탭하여 QR코드 보기';
 
   viewToggle.innerHTML = scanView
-    ? '<span class="material-icons-outlined">3d_rotation</span> 3D 장면 보기'
-    : '<span class="material-icons-outlined">qr_code_scanner</span> QR코드 보기';
+    ? '<span class="material-icons-outlined" aria-hidden="true">3d_rotation</span> 3D 장면 보기'
+    : '<span class="material-icons-outlined" aria-hidden="true">qr_code_scanner</span> QR코드 보기';
 
   notice.dataset.tone = scanView ? 'scan' : 'scene';
   notice.innerHTML = scanView
-    ? `<span class="material-icons-outlined">photo_camera</span>
+    ? `<span class="material-icons-outlined" aria-hidden="true">photo_camera</span>
        <span>스마트폰 카메라로 <strong>바로 스캔</strong>해 보세요. 화면을 다시 탭하면 3D 장면으로 돌아갑니다.</span>`
-    : `<span class="material-icons-outlined">touch_app</span>
+    : `<span class="material-icons-outlined" aria-hidden="true">touch_app</span>
        <span>3D 장면을 드래그하면 시점을 돌릴 수 있고, <strong>탭하면 스캔 가능한 QR코드</strong>로 전환됩니다.</span>`;
 }
 
@@ -226,8 +252,13 @@ function setActionMessage(text, tone = 'info') {
 
   const icon = document.createElement('span');
   icon.className = 'material-icons-outlined';
+  icon.setAttribute('aria-hidden', 'true');
   icon.textContent =
-    tone === 'error' ? 'error_outline' : tone === 'success' ? 'check_circle' : 'info';
+    tone === 'error'
+      ? 'error_outline'
+      : tone === 'success'
+        ? 'check_circle'
+        : 'info';
   actionMessage.append(icon, document.createTextNode(text));
 }
 
@@ -236,7 +267,7 @@ function createHeader() {
   header.className = 'app-header';
   header.innerHTML = `
     <div class="app-header__inner">
-      <span class="app-header__mark"><span class="material-icons-outlined">rocket_launch</span></span>
+      <span class="app-header__mark"><span class="material-icons-outlined" aria-hidden="true">rocket_launch</span></span>
       <h1 class="app-header__title">QR612</h1>
       <p class="app-header__subtitle">어린왕자의 장면이 되는 QR코드 — 탭하면 스캔 가능한 QR로 바뀝니다.</p>
     </div>
@@ -258,6 +289,15 @@ updateViewLabels(0);
 window.QR612 = { state, engine, themes: THEMES };
 
 if (shared.url) {
+  state.userGenerated = true;
   urlInput.setValue(shared.url);
   urlInput.submit();
+} else {
+  // 빈 화면 대신 예시 장면을 먼저 보여준다.
+  // 테마를 바로 눌러볼 수 있고, 주소를 바꿔 넣으면 그대로 대체된다.
+  urlInput.setValue(DEMO_URL);
+  generate(DEMO_URL, state.themeId);
+  urlInput.setMessage(
+    '예시 주소로 만든 장면입니다. 주소를 바꿔 넣고 생성하기를 눌러 보세요.'
+  );
 }

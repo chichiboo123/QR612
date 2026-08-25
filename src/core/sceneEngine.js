@@ -32,6 +32,13 @@ const BLACK = new THREE.Color(0x000000);
 /** 블록 사이 z-fighting 방지를 위한 최소 단차 */
 const GROUND_OFFSET = 0.02;
 
+/**
+ * 스캔 카드가 놓이는 높이.
+ * 씬의 어떤 블록보다 위에 있어 자연스럽게 가리고, 정사영에 가까운 탑다운
+ * 카메라에서는 이 높이차로 인한 시차가 무시할 수준(0.1모듈 미만)이다.
+ */
+const SCAN_CARD_Y = 9;
+
 export class SceneEngine {
   /**
    * @param {HTMLElement} container 렌더러가 붙을 DOM 요소
@@ -49,6 +56,8 @@ export class SceneEngine {
       antialias: true,
       alpha: false,
       powerPreference: 'high-performance',
+      // 스캔 뷰 PNG 저장을 위해 드로잉 버퍼를 보존한다
+      preserveDrawingBuffer: true,
     });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -68,17 +77,28 @@ export class SceneEngine {
 
     /** 씬 그룹 */
     this.blockGroup = new THREE.Group();
-    this.decorGroup = new THREE.Group();
+    this.decorGroup = new THREE.Group(); // 전환 중 사라지는 큰 장식
+    this.sceneryGroup = new THREE.Group(); // 스캔 뷰에서도 남는 낮은 풍경 요소
     this.celestialGroup = new THREE.Group();
     this.lightGroup = new THREE.Group();
+    this.scanLightGroup = new THREE.Group();
     this.scene.add(
       this.blockGroup,
       this.decorGroup,
+      this.sceneryGroup,
       this.celestialGroup,
-      this.lightGroup
+      this.lightGroup,
+      this.scanLightGroup
     );
+    this._buildScanLights();
+
+    const reducedMotion =
+      typeof window !== 'undefined' &&
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
     this.transition = new TransitionController({
+      // 모션 민감 설정을 켠 사용자에게는 전환을 거의 즉시 끝낸다
+      duration: reducedMotion ? 0.08 : undefined,
       onChange: (t) => this.options.onViewChange?.(t),
     });
 
@@ -129,6 +149,9 @@ export class SceneEngine {
 
     this.scanDark = new THREE.Color(palette.scanDark || '#101010');
     this.scanLight = new THREE.Color(palette.scanLight || '#FAFAFA');
+    this.scanGround = new THREE.Color(
+      palette.scanGround || palette.ground || palette.light || '#DDDDDD'
+    );
 
     this._buildBackground();
     this._buildBlocks(matrix, size);
@@ -238,9 +261,10 @@ export class SceneEngine {
 
   _buildGround(size) {
     const quiet = this.qr.quietZone ?? 4;
-    // 화면 밖까지 넉넉히 깔아 바닥면의 직선 모서리가 보이지 않게 한다.
-    const span = (size + quiet * 2 + 8) * 2.2;
-    const segments = 96;
+    // 화면 밖까지 아주 넉넉히 깔고, 안개가 배경색으로 녹여주도록 한다.
+    // (평면 테마에서 바닥판의 직선 모서리가 지평선처럼 보이는 것을 막는다)
+    const span = (size + quiet * 2 + 8) * 6;
+    const segments = 128;
 
     const geometry = new THREE.PlaneGeometry(span, span, segments, segments);
     geometry.rotateX(-Math.PI / 2);
@@ -263,91 +287,124 @@ export class SceneEngine {
       material,
       baseColor: material.color.clone(),
       baseEmissive: material.emissive.clone(),
-      basePositions: Float32Array.from(
-        geometry.attributes.position.array
-      ),
+      basePositions: Float32Array.from(geometry.attributes.position.array),
     };
     this._groundBend = -1;
   }
 
   /* --------------------------------------------------------------- */
-  /* 스캔 보장 오버레이                                                */
+  /* 스캔 카드 (탑다운 뷰의 실제 QR)                                    */
   /* --------------------------------------------------------------- */
 
   /**
-   * progress 가 1 에 가까워질 때만 나타나는 "정답 QR" 레이어.
+   * 엔진 소유의 스캔 조명 리그.
    *
-   * - dark 모듈: 정확히 1×1 크기의 순수 scanDark 평면
-   * - 바탕: QR + quiet zone 을 덮는 순수 scanLight 평면
-   * - depthTest 를 끄고 렌더 순서를 최상단으로 두어 장식/조명의 영향을 완전히 차단
+   * 탑다운 뷰에서 조명을 완전히 꺼버리면 QR 이 "그냥 검은 QR" 로 보인다.
+   * 대신 위에서 내려오는 부드러운 톱라이트를 유지해, 타일 윗면은 고유색 그대로
+   * 밝게 나오고 옆면만 살짝 어두워지도록 한다. 스캔 대비는 그대로 지키면서
+   * "위에서 내려다본 낮은 복셀 풍경" 처럼 읽히게 하는 장치.
+   */
+  _buildScanLights() {
+    this.scanAmbient = new THREE.AmbientLight(0xffffff, 0);
+    this.scanKey = new THREE.DirectionalLight(0xffffff, 0);
+    this.scanKey.position.set(38, 120, 26);
+    this.scanLightGroup.add(this.scanAmbient, this.scanKey);
+  }
+
+  /**
+   * progress 가 커질수록 페이드인되는 "스캔 카드".
    *
-   * 덕분에 테마는 블록 지오메트리를 자유롭게(별 모양, 원형 타일 등) 쓰면서도
-   * 탑다운 뷰의 스캔 성공률을 잃지 않는다.
+   * 구성 (아래 → 위)
+   *   1. 그림자 판 — 카드가 풍경 위에 얹힌 것처럼 보이게 하는 살짝 큰 어두운 판
+   *   2. 바탕 판   — QR + quiet zone(여유 1.5모듈 추가)을 덮는 테마 밝은색 판
+   *   3. 모듈 타일 — 정확히 1×1 크기의 얕은 박스, 테마 어두운색
+   *
+   * 순수 흑백이 아니라 테마 팔레트를 쓰고, 평면이 아니라 얕은 박스를 조명 아래
+   * 두기 때문에 탑다운 뷰에서도 테마의 정체성이 남는다. 그러면서 모듈 실루엣은
+   * 정확히 1×1 이므로 테마가 어떤 블록 지오메트리를 쓰든 스캔은 보장된다.
    */
   _buildScanOverlay(size) {
     const quiet = this.qr.quietZone ?? 4;
-    const span = size + quiet * 2;
+    const cardHalf = size / 2 + quiet + 1.5;
+    const y = SCAN_CARD_Y;
 
-    const baseGeo = new THREE.PlaneGeometry(span, span);
-    baseGeo.rotateX(-Math.PI / 2);
-    const baseMat = new THREE.MeshBasicMaterial({
-      color: this.scanLight.clone(),
-      transparent: true,
-      opacity: 0,
-      depthTest: false,
-      depthWrite: false,
-      fog: false,
-      toneMapped: false,
-    });
-    const base = new THREE.Mesh(baseGeo, baseMat);
-    base.position.y = 0.4;
-    base.renderOrder = 900;
-    base.visible = false;
+    const makeMaterial = (color) =>
+      new THREE.MeshLambertMaterial({
+        color: new THREE.Color(color),
+        transparent: true,
+        opacity: 0,
+        fog: false,
+        side: THREE.FrontSide,
+      });
+
+    // 1. 그림자 판
+    const shadowMat = makeMaterial(this.palette.scanShadow || '#000000');
+    const shadow = new THREE.Mesh(
+      new THREE.BoxGeometry(cardHalf * 2 + 1.6, 0.12, cardHalf * 2 + 1.6),
+      shadowMat
+    );
+    shadow.position.set(0.8, y - 0.16, 0.8);
+    shadow.frustumCulled = false;
+    shadow.visible = false;
+
+    // 2. 바탕 판
+    const baseMat = makeMaterial(this.scanLight);
+    const base = new THREE.Mesh(
+      new THREE.BoxGeometry(cardHalf * 2, 0.3, cardHalf * 2),
+      baseMat
+    );
+    base.position.y = y;
     base.frustumCulled = false;
+    base.visible = false;
 
-    const moduleGeo = new THREE.PlaneGeometry(1, 1);
-    moduleGeo.rotateX(-Math.PI / 2);
-    const moduleMat = new THREE.MeshBasicMaterial({
-      color: this.scanDark.clone(),
-      transparent: true,
-      opacity: 0,
-      depthTest: false,
-      depthWrite: false,
-      fog: false,
-      toneMapped: false,
-    });
+    // 3. 모듈 타일
+    const moduleMat = makeMaterial(this.scanDark);
     const modules = new THREE.InstancedMesh(
-      moduleGeo,
+      // 1.004 — 부동소수 오차로 모듈 사이에 실틈이 생기지 않도록 아주 살짝 겹친다
+      new THREE.BoxGeometry(1.004, 0.34, 1.004),
       moduleMat,
       Math.max(this.darkCells.length, 1)
     );
     modules.count = this.darkCells.length;
-    modules.renderOrder = 901;
-    modules.visible = false;
     modules.frustumCulled = false;
+    modules.visible = false;
 
     const dummy = this._dummy;
     for (let i = 0; i < this.darkCells.length; i += 1) {
       const { x, z } = this.darkCells[i];
-      dummy.position.set(x, 0.42, z);
+      dummy.position.set(x, y + 0.22, z);
       dummy.quaternion.identity();
-      // 1.002 — 부동소수 오차로 모듈 사이에 실틈이 생기지 않도록 아주 살짝 겹친다
-      dummy.scale.set(1.002, 1, 1.002);
+      dummy.scale.set(1, 1, 1);
       dummy.updateMatrix();
       modules.setMatrixAt(i, dummy.matrix);
     }
     modules.instanceMatrix.needsUpdate = true;
 
-    this.scene.add(base, modules);
+    this.scene.add(shadow, base, modules);
+    this._trackDisposable(shadow);
     this._trackDisposable(base);
     this._trackDisposable(modules);
-    this.scanOverlay = { base, baseMat, modules, moduleMat };
+
+    this.scanOverlay = {
+      meshes: [shadow, base, modules],
+      materials: [shadowMat, baseMat, moduleMat],
+      opacities: [0.24, 1, 1],
+      cardHalf,
+    };
   }
 
   /* --------------------------------------------------------------- */
   /* 장식 오브젝트                                                     */
   /* --------------------------------------------------------------- */
 
+  /**
+   * 장식 배치.
+   *
+   * spec.persistent 가 true 인 오브젝트는 탑다운 뷰에서도 사라지지 않는다.
+   * QR 판 바깥의 낮은 풍경 요소(풀포기·조약돌·발자국 등)를 남겨두면
+   * 스캔 뷰가 "검은 QR" 이 아니라 "위에서 내려다본 풍경" 으로 읽힌다.
+   * 대신 QR 판을 침범할 수 있는 큰 오브젝트는 반드시 사라져야 한다.
+   */
   _buildDecorations(size) {
     const specs = this.theme.placeDecorations(size) || [];
     for (const spec of specs) {
@@ -355,7 +412,7 @@ export class SceneEngine {
       if (!obj) continue;
       applySpecTransform(obj, spec);
       this._applyDomeToObject(obj, 1);
-      this.decorGroup.add(obj);
+      (spec.persistent ? this.sceneryGroup : this.decorGroup).add(obj);
       this._trackDisposable(obj);
     }
     this._decorBend = 1;
@@ -388,14 +445,14 @@ export class SceneEngine {
 
   _applyScanOverlay(state) {
     if (!this.scanOverlay) return;
-    const { base, baseMat, modules, moduleMat } = this.scanOverlay;
+    const { meshes, materials, opacities } = this.scanOverlay;
     const o = state.scanOverlay;
     const visible = o > 0.001;
 
-    base.visible = visible;
-    modules.visible = visible;
-    baseMat.opacity = o;
-    moduleMat.opacity = o;
+    for (let i = 0; i < meshes.length; i += 1) {
+      meshes[i].visible = visible;
+      materials[i].opacity = opacities[i] * o;
+    }
   }
 
   _applyCamera(state) {
@@ -430,12 +487,7 @@ export class SceneEngine {
     if (!this.darkMesh) return;
 
     this._writeInstances(this.darkMesh, this.darkCells, state.darkHeight, state);
-    this._writeInstances(
-      this.lightMesh,
-      this.lightCells,
-      state.lightHeight,
-      state
-    );
+    this._writeInstances(this.lightMesh, this.lightCells, state.lightHeight, state);
   }
 
   _writeInstances(entry, cells, height, state) {
@@ -491,8 +543,10 @@ export class SceneEngine {
     }
 
     if (Math.abs(state.bend - this._decorBend) > 0.001) {
-      for (const obj of this.decorGroup.children) {
-        this._applyDomeToObject(obj, state.bend);
+      for (const group of [this.decorGroup, this.sceneryGroup]) {
+        for (const obj of group.children) {
+          this._applyDomeToObject(obj, state.bend);
+        }
       }
       this._decorBend = state.bend;
     }
@@ -524,24 +578,31 @@ export class SceneEngine {
   _applyMaterials(state) {
     const flat = state.flat;
 
+    // 블록은 스캔 카드와 "같은 색 · 같은 조명" 으로 수렴한다.
+    // 그래야 카드가 페이드인될 때 교체되는 순간이 보이지 않는다.
     for (const entry of [this.darkMesh, this.lightMesh]) {
       if (!entry) continue;
       const scan = entry === this.darkMesh ? this.scanDark : this.scanLight;
-      entry.material.color.copy(entry.baseColor).lerp(BLACK, flat);
+      entry.material.color.copy(entry.baseColor).lerp(scan, flat);
       if (entry.material.emissive) {
-        entry.material.emissive.copy(entry.baseEmissive).lerp(scan, flat);
+        entry.material.emissive.copy(entry.baseEmissive).lerp(BLACK, flat);
       }
     }
 
+    // 바닥은 흰색이 아니라 "밝은 풍경색" 으로 수렴한다.
+    // QR 판(스캔 카드)이 그 위에 얹힌 구도가 되어, 탑다운 뷰가
+    // 종이 위의 검은 QR 이 아니라 위에서 본 풍경으로 읽힌다.
     if (this.ground) {
-      this.ground.material.color.copy(this.ground.baseColor).lerp(BLACK, flat);
+      this.ground.material.color
+        .copy(this.ground.baseColor)
+        .lerp(this.scanGround, flat);
       this.ground.material.emissive
         .copy(this.ground.baseEmissive)
-        .lerp(this.scanLight, flat);
+        .lerp(BLACK, flat);
     }
 
     if (this.scene.background) {
-      this._tmpColor.copy(this.baseBackground).lerp(this.scanLight, flat);
+      this._tmpColor.copy(this.baseBackground).lerp(this.scanGround, flat);
       this.scene.background.copy(this._tmpColor);
     }
 
@@ -551,33 +612,45 @@ export class SceneEngine {
       this.scene.fog.far = this.baseFog.far * release;
     }
 
+    // 테마 조명은 스캔 뷰에서 완전히 끈다.
+    // (장미 테마의 중앙 포인트라이트처럼 국소적으로 밝은 얼룩을 만들면
+    //  QR 대비가 그 부분만 무너져 스캔이 불안정해진다. 색은 albedo 로 유지된다.)
     for (const { light, baseIntensity } of this.lights || []) {
       light.intensity = baseIntensity * (1 - flat);
+    }
+
+    // 엔진 소유의 스캔 조명 리그를 서서히 올린다.
+    if (this.scanAmbient) {
+      const lit = state.scanLighting;
+      this.scanAmbient.intensity = 1.55 * lit;
+      this.scanKey.intensity = 1.35 * lit;
     }
   }
 
   _applyDecorFade(state) {
-    const opacity = state.decorOpacity;
-    const visible = opacity > 0.01;
+    // 큰 장식·하늘 오브젝트는 사라지고, 낮은 풍경 요소는 끝까지 남는다.
+    this._fadeGroup(this.decorGroup, state.decorOpacity);
+    this._fadeGroup(this.celestialGroup, state.decorOpacity);
+    this._fadeGroup(this.sceneryGroup, 1);
+  }
 
-    for (const group of [this.decorGroup, this.celestialGroup]) {
-      group.visible = visible;
-      if (!visible) continue;
-      group.traverse((obj) => {
-        if (!obj.material) return;
-        const materials = Array.isArray(obj.material)
-          ? obj.material
-          : [obj.material];
-        for (const m of materials) {
-          if (m.userData.baseOpacity === undefined) {
-            m.userData.baseOpacity = m.opacity ?? 1;
-          }
-          m.transparent = true;
-          m.opacity = m.userData.baseOpacity * opacity;
-          m.depthWrite = m.opacity > 0.9;
+  _fadeGroup(group, opacity) {
+    group.visible = opacity > 0.01;
+    if (!group.visible) return;
+
+    group.traverse((obj) => {
+      if (!obj.material) return;
+      const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
+      for (const m of materials) {
+        if (m.userData.baseOpacity === undefined) {
+          m.userData.baseOpacity = m.opacity ?? 1;
         }
-      });
-    }
+        const next = m.userData.baseOpacity * opacity;
+        m.opacity = next;
+        m.transparent = next < 0.999;
+        m.depthWrite = next > 0.9;
+      }
+    });
   }
 
   /* --------------------------------------------------------------- */
@@ -598,6 +671,67 @@ export class SceneEngine {
 
   get isScanView() {
     return this.transition.isScanView;
+  }
+
+  /**
+   * 현재 테마의 탑다운 스캔 뷰를 정사각형 PNG 데이터 URL 로 렌더링한다.
+   * 화면 상태(progress·뷰포트)는 건드리지 않고, 렌더러 크기와 카메라만
+   * 잠시 빌려 썼다가 곧바로 되돌린다.
+   *
+   * @param {number} [pixels] 한 변의 픽셀 수
+   * @returns {string|null} data:image/png URL
+   */
+  captureScanImage(pixels = 1240) {
+    if (!this.qr || !this.theme) return null;
+
+    const canvas = this.renderer.domElement;
+    const prevWidth = canvas.width;
+    const prevHeight = canvas.height;
+    const prevRatio = this.renderer.getPixelRatio();
+    const prevAspect = this.camera.aspect;
+
+    try {
+      this.renderer.setPixelRatio(1);
+      this.renderer.setSize(pixels, pixels, false);
+      this.camera.aspect = 1;
+
+      const state = computeTransitionState(1, {
+        matrixSize: this.qr.size,
+        quietZone: this.qr.quietZone ?? 4,
+        aspect: 1,
+        curvature: this.curvature ?? 0,
+        darkHeight3d: this.darkMesh?.height3d,
+        lightHeight3d: this.lightMesh?.height3d,
+      });
+
+      // 캡처 중에는 자동 회전/드래그 오프셋을 무시해 항상 정면 탑다운으로 담는다.
+      const azimuth = this.autoAzimuth;
+      const elevation = this.userElevation;
+      const userAzimuth = this.userAzimuth;
+      this.autoAzimuth = 0;
+      this.userAzimuth = 0;
+      this.userElevation = 0;
+
+      this._applyState(state);
+      this.renderer.render(this.scene, this.camera);
+      const dataUrl = canvas.toDataURL('image/png');
+
+      this.autoAzimuth = azimuth;
+      this.userAzimuth = userAzimuth;
+      this.userElevation = elevation;
+
+      return dataUrl;
+    } catch (error) {
+      console.error('[QR612] 이미지 캡처 실패', error);
+      return null;
+    } finally {
+      this.renderer.setPixelRatio(prevRatio);
+      this.renderer.setSize(prevWidth / prevRatio, prevHeight / prevRatio, false);
+      this.camera.aspect = prevAspect;
+      this.camera.updateProjectionMatrix();
+      this.resize();
+      this._needsInstanceUpdate = true;
+    }
   }
 
   /* --------------------------------------------------------------- */
@@ -732,6 +866,7 @@ export class SceneEngine {
     for (const group of [
       this.blockGroup,
       this.decorGroup,
+      this.sceneryGroup,
       this.celestialGroup,
       this.lightGroup,
     ]) {

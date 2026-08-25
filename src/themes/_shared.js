@@ -51,7 +51,14 @@ export function cone(radius, height, segments, material, position = [0, 0, 0]) {
   return mesh;
 }
 
-export function cylinder(rTop, rBottom, height, segments, material, position = [0, 0, 0]) {
+export function cylinder(
+  rTop,
+  rBottom,
+  height,
+  segments,
+  material,
+  position = [0, 0, 0]
+) {
   const mesh = new THREE.Mesh(
     new THREE.CylinderGeometry(rTop, rBottom, height, segments),
     material
@@ -99,6 +106,27 @@ export function ringPoint(matrixSize, angleDeg, ringPadding = 5) {
   const radius = matrixSize / 2 + ringPadding;
   const a = (angleDeg * Math.PI) / 180;
   return [radius * Math.sin(a), radius * Math.cos(a)];
+}
+
+/**
+ * QR 그리드를 감싸는 "정사각 링" 위의 좌표.
+ *
+ * 스캔 뷰에서 QR 판(정사각형)을 침범하지 않아야 하는 장식은 원형 링이 아니라
+ * 정사각 링 위에 놓아야 한다. (원형 링은 대각선 방향에서 판 위로 올라온다.)
+ *
+ * @param {number} matrixSize
+ * @param {number} angleDeg 0도 = +Z 방향
+ * @param {number} [pad] QR 판 경계에서 바깥으로 더 밀어낼 거리(모듈 단위)
+ * @param {number} [quietZone]
+ * @returns {[number, number]} [x, z]
+ */
+export function squareRingPoint(matrixSize, angleDeg, pad = 2, quietZone = 4) {
+  const half = matrixSize / 2 + quietZone + 1.5 + pad;
+  const a = (angleDeg * Math.PI) / 180;
+  const dx = Math.sin(a);
+  const dz = Math.cos(a);
+  const scale = half / Math.max(Math.abs(dx), Math.abs(dz));
+  return [dx * scale, dz * scale];
 }
 
 /** 그룹 헬퍼 */
