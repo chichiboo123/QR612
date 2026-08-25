@@ -140,7 +140,8 @@ export class TransitionController {
   update(dt) {
     if (this._settled) return false;
 
-    const step = Math.min(dt, 0.05) / this.duration;
+    // 프레임이 길어져도(저사양 기기) 전환이 느려지지 않도록 넉넉히 잡는다.
+    const step = Math.min(dt, 0.12) / this.duration;
     const diff = this.target - this.progress;
 
     if (Math.abs(diff) <= step) {
@@ -199,8 +200,8 @@ export function computeTransitionState(progress, ctx) {
   const azimuth = lerp(TRANSITION.azimuth3d, TRANSITION.azimuth2d, t);
 
   // 3D 에서는 장식까지 담을 여유를, 2D 에서는 QR + quiet zone 만 정확히 담는다.
-  const halfSpan3d = matrixSize * 0.62 + 4;
-  const halfSpan2d = matrixSize / 2 + quietZone + 0.6;
+  const halfSpan3d = matrixSize * 0.72 + 7;
+  const halfSpan2d = matrixSize / 2 + quietZone + 1.6;
   const halfSpan = lerp(halfSpan3d, halfSpan2d, t);
   const distance = fitDistance(fov, aspect, halfSpan);
 
@@ -241,6 +242,8 @@ export function computeTransitionState(progress, ctx) {
     decorOpacity,
     flat,
     bend,
+    /** 안개를 걷어내는 정도 (전환 초반에 먼저 사라져 QR 대비를 지킨다) */
+    fogRelease: smoothstep(0.08, 0.55, p),
     /** 스캔 보장 오버레이 불투명도 */
     scanOverlay: smoothstep(
       TRANSITION.scanOverlayStart,

@@ -70,7 +70,7 @@ export function getBlockGeometry(isDark) {
 export function getBackgroundSetup() {
   return {
     background: PALETTE.sky,
-    fog: { color: '#3A6E96', near: 55, far: 340 },
+    fog: { color: '#3A6E96', near: 92, far: 265 },
     lights: [
       { type: 'hemisphere', sky: '#BFD9F2', ground: '#4E6B58', intensity: 1.5 },
       {

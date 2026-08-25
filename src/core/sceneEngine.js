@@ -209,7 +209,10 @@ export class SceneEngine {
     const spec = this.theme.getBlockGeometry(isDark);
     const geometry = normalizeBlockGeometry(spec.geometry);
     const material = spec.material;
-    material.fog = false; // 스캔 뷰에서 안개가 대비를 해치지 않도록
+    // 3D 뷰의 공기감을 위해 안개를 켜둔다.
+    // 전환이 시작되면 엔진이 안개를 걷어내고(fogRelease), 스캔 뷰에서는
+    // 안개 영향을 받지 않는 오버레이가 최종 QR을 그리므로 대비는 안전하다.
+    material.fog = true;
 
     const mesh = new THREE.InstancedMesh(geometry, material, Math.max(count, 1));
     mesh.count = count;
@@ -235,8 +238,9 @@ export class SceneEngine {
 
   _buildGround(size) {
     const quiet = this.qr.quietZone ?? 4;
-    const span = size + quiet * 2 + 8;
-    const segments = 72;
+    // 화면 밖까지 넉넉히 깔아 바닥면의 직선 모서리가 보이지 않게 한다.
+    const span = (size + quiet * 2 + 8) * 2.2;
+    const segments = 96;
 
     const geometry = new THREE.PlaneGeometry(span, span, segments, segments);
     geometry.rotateX(-Math.PI / 2);
@@ -244,7 +248,7 @@ export class SceneEngine {
     const material = new THREE.MeshLambertMaterial({
       color: new THREE.Color(this.palette.ground || this.palette.light),
       emissive: new THREE.Color(this.palette.groundEmissive || '#000000'),
-      fog: false,
+      fog: true,
       side: THREE.FrontSide,
     });
 
@@ -409,7 +413,8 @@ export class SceneEngine {
     const r = state.distance;
 
     this.camera.fov = state.fov;
-    this.camera.far = r * 3;
+    // 하늘의 배경 오브젝트(먼 별·해)가 잘리지 않도록 넉넉한 far
+    this.camera.far = r * 9;
     this.camera.near = Math.max(0.5, r * 0.02);
     this.camera.position.set(
       r * Math.cos(el) * Math.sin(az),
@@ -541,8 +546,9 @@ export class SceneEngine {
     }
 
     if (this.scene.fog && this.baseFog) {
-      this.scene.fog.far = this.baseFog.far * (1 + flat * 40);
-      this.scene.fog.near = this.baseFog.near * (1 + flat * 40);
+      const release = 1 + state.fogRelease * 60;
+      this.scene.fog.near = this.baseFog.near * release;
+      this.scene.fog.far = this.baseFog.far * release;
     }
 
     for (const { light, baseIntensity } of this.lights || []) {

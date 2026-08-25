@@ -67,7 +67,7 @@ export function getBlockGeometry(isDark) {
 export function getBackgroundSetup() {
   return {
     background: PALETTE.sky,
-    fog: { color: '#163325', near: 60, far: 330 },
+    fog: { color: '#163325', near: 92, far: 245 },
     lights: [
       { type: 'hemisphere', sky: '#F5CBD8', ground: '#12291D', intensity: 1.3 },
       {
@@ -238,9 +238,7 @@ function buildGlassDome() {
   rim.rotation.x = Math.PI / 2;
   rim.position.y = 0.02;
 
-  const knob = blob(0.05, 0, rimMat, [0, 0.8, 0]);
-
-  return group(dome, rim, knob);
+  return group(dome, rim);
 }
 
 /** 원형 정원 바닥 */

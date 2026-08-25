@@ -53,20 +53,20 @@ export function getBlockGeometry(isDark) {
       // 살짝 기울어진 사구 능선처럼 보이도록 윗면을 좁힌 사각 기둥
       geometry: new THREE.CylinderGeometry(0.55, 1, 1, 4, 1),
       material: flatMaterial(PALETTE.dark, { emissive: PALETTE.darkEmissive }),
-      height: 2.9,
+      height: 2.3,
     };
   }
   return {
     geometry: new THREE.CylinderGeometry(0.9, 1, 1, 4, 1),
     material: flatMaterial(PALETTE.light),
-    height: 0.7,
+    height: 0.8,
   };
 }
 
 export function getBackgroundSetup() {
   return {
     background: PALETTE.sky,
-    fog: { color: '#F0B48C', near: 50, far: 300 },
+    fog: { color: '#F0B48C', near: 88, far: 235 },
     lights: [
       { type: 'hemisphere', sky: '#FFDDBB', ground: '#8A5A38', intensity: 1.6 },
       {

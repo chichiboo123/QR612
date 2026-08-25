@@ -30,6 +30,8 @@ export function glowMaterial(color, options = {}) {
     opacity: options.opacity ?? 1,
     side: options.side || THREE.FrontSide,
     depthWrite: options.depthWrite ?? true,
+    // 하늘의 발광체(별·해·달)는 안개에 먹히지 않아야 한다
+    fog: options.fog ?? false,
     toneMapped: false,
   });
 }

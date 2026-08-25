@@ -69,26 +69,33 @@ export function getBlockGeometry(isDark) {
 export function getBackgroundSetup() {
   const rand = makeRandom(20240612);
   const stars = [];
-  for (let i = 0; i < 90; i += 1) {
-    const angle = rand() * Math.PI * 2;
-    const radius = 90 + rand() * 130;
+
+  // 작은 행성이 우주에 떠 있는 구도이므로, 별을 상반구가 아니라
+  // 씬을 감싸는 커다란 구(球) 전체에 고르게 뿌린다.
+  // (아이소메트릭 뷰에서 실제로 보이는 "하늘"은 지평선 아래쪽 배경이기도 하다.)
+  for (let i = 0; i < 240; i += 1) {
+    const u = rand() * 2 - 1; // cos(polar)
+    const phi = rand() * Math.PI * 2;
+    const ring = Math.sqrt(1 - u * u);
+    const radius = 190 + rand() * 110;
+
     stars.push({
       type: 'farStar',
       position: [
-        Math.sin(angle) * radius,
-        12 + rand() * 90,
-        Math.cos(angle) * radius,
+        Math.cos(phi) * ring * radius,
+        u * radius,
+        Math.sin(phi) * ring * radius,
       ],
-      scale: 0.5 + rand() * 1.5,
+      scale: 1.7 + rand() * 3.4,
       color: rand() > 0.75 ? '#FFFFFF' : PALETTE.accent,
     });
   }
 
   return {
     background: PALETTE.sky,
-    fog: { color: '#0D1B3E', near: 70, far: 380 },
+    fog: { color: '#0D1B3E', near: 86, far: 215 },
     lights: [
-      { type: 'ambient', color: '#5C74B8', intensity: 1.1 },
+      { type: 'ambient', color: '#6B84C8', intensity: 1.35 },
       {
         type: 'directional',
         color: '#9FB6F0',
@@ -99,7 +106,7 @@ export function getBackgroundSetup() {
     ],
     objects: [
       ...stars,
-      { type: 'moon', position: [78, 52, -86], scale: 6.5 },
+      { type: 'moon', position: [64, 18, -132], scale: 8 },
     ],
   };
 }
@@ -112,7 +119,7 @@ export function placeDecorations(matrixSize) {
       type: 'princeOnPlanet',
       position: [x, 0, z],
       rotation: [0, 2.5, 0],
-      scale: 1.85,
+      scale: 2.4,
     },
   ];
 }
@@ -139,10 +146,12 @@ export function buildDecoration(spec) {
  * 원작 삽화를 옮기지 않고, 페이퍼컷 실루엣처럼 단순화한 독자 형태.
  */
 function buildPrinceOnPlanet() {
-  const planetMat = flatMaterial('#243B6B', { emissive: '#060C1C' });
-  const silhouette = glowMaterial('#0A1128', { transparent: false });
+  // 밤하늘을 배경으로 하므로 어두운 실루엣 대신
+  // "달빛을 받은 페이퍼컷" 처럼 밝은 색으로 형태를 드러낸다.
+  const planetMat = flatMaterial('#2E4A85', { emissive: '#0A1330' });
+  const silhouette = glowMaterial('#C9D6F5', { transparent: false });
   const scarfMat = glowMaterial('#F2C14E', { transparent: false });
-  const hairMat = glowMaterial('#E8C46A', { transparent: false });
+  const hairMat = glowMaterial('#F7DE9E', { transparent: false });
 
   const planet = blob(2.0, 1, planetMat, [0, 0.9, 0]);
 
