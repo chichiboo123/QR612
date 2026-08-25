@@ -194,6 +194,7 @@ export function computeTransitionState(progress, ctx) {
     curvature = 0,
     darkHeight3d = 2.4,
     lightHeight3d = 0.5,
+    blockSpread = TRANSITION.blockScale3d,
   } = ctx;
 
   const t = easeInOutCubic(p);
@@ -211,11 +212,9 @@ export function computeTransitionState(progress, ctx) {
   const distance = fitDistance(fov, aspect, halfSpan);
 
   const tighten = smoothstep(TRANSITION.tightenStart, TRANSITION.tightenEnd, p);
-  const blockScaleXZ = lerp(
-    TRANSITION.blockScale3d,
-    TRANSITION.blockScale2d,
-    tighten
-  );
+  // 3D 뷰의 블록 간격은 테마가 정한다.
+  // 사막의 사구처럼 "덩어리" 로 읽혀야 하는 테마는 틈을 거의 두지 않는다.
+  const blockScaleXZ = lerp(blockSpread, TRANSITION.blockScale2d, tighten);
 
   const darkHeight = lerp(darkHeight3d, TRANSITION.darkHeight2d, t);
   const lightHeight = lerp(lightHeight3d, TRANSITION.lightHeight2d, t);

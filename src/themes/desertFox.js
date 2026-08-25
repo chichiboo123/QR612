@@ -18,6 +18,7 @@ import {
   group,
   ringPoint,
   squareRingPoint,
+  pickWalkableCells,
   makeRandom,
 } from './_shared.js';
 
@@ -53,20 +54,40 @@ export function getCurvature() {
   return 0.45; // 사막 지평선이 둥글게 휘는 정도
 }
 
+/** 사구는 능선마다 높이가 달라야 사막처럼 보인다 */
+export function getHeightJitter() {
+  return 0.5;
+}
+
+/** 사구마다 볕이 드는 정도가 달라 보이게 */
+export function getColorVariation() {
+  return 0.16;
+}
+
+/** 사구는 기둥이 아니라 덩어리로 보여야 하므로 블록 사이 틈을 거의 없앤다 */
+export function getBlockSpread() {
+  return 0.99;
+}
+
 export function getBlockGeometry(isDark) {
   if (isDark) {
     return {
       // 정사각 밑면 — 탑다운에서 모듈이 정확히 맞물리도록
       geometry: new THREE.BoxGeometry(1, 1, 1),
       material: flatMaterial(PALETTE.dark, { emissive: PALETTE.darkEmissive }),
-      height: 1.9,
+      height: 3.6,
     };
   }
   return {
     geometry: new THREE.BoxGeometry(1, 1, 1),
     material: flatMaterial(PALETTE.light),
-    height: 0.7,
+    height: 0.52,
   };
+}
+
+/** 1인칭 탐험 중 보조 조명 세기 — 햇볕이 강해 거의 필요 없다 */
+export function getPlayerLight() {
+  return 0.25;
 }
 
 export function getBackgroundSetup() {
@@ -141,6 +162,45 @@ export function placeDecorations(matrixSize) {
   }
 
   return specs;
+}
+
+export function placeLandmarks(matrixSize, matrix) {
+  const entries = [
+    {
+      title: '우물로 가는 길',
+      message: '모래 위 발자국이 이쪽으로 이어집니다.',
+      color: '#7FD6E8',
+    },
+    {
+      title: '사구 그늘',
+      message: '해가 넘어가는 쪽 능선이 그늘을 드리웁니다.',
+      color: '#FFC46B',
+    },
+    {
+      title: '여우가 앉았던 자리',
+      message: '모래가 조금 눌려 있습니다. 방금까지 누가 있었나 봅니다.',
+      color: '#E07A3C',
+    },
+    {
+      title: '가장 높은 능선',
+      message: '점프해서 올라가면 사막 전체가 보입니다.',
+      color: '#FFE38A',
+    },
+    {
+      title: '마른 우물터',
+      message: '두레박 줄만 남아 바람에 흔들립니다.',
+      color: '#C08A55',
+    },
+    {
+      title: '별을 세던 자리',
+      message: '밤이면 여기 누워 하늘을 봤겠지요.',
+      color: '#F49FC4',
+    },
+  ];
+
+  return pickWalkableCells(matrixSize, matrix, entries.length, 41).map(
+    (point, i) => ({ ...entries[i], ...point })
+  );
 }
 
 export function buildDecoration(spec) {
@@ -289,7 +349,12 @@ export default {
   getBlockGeometry,
   getPalette,
   placeDecorations,
+  placeLandmarks,
   getBackgroundSetup,
+  getPlayerLight,
   getCurvature,
+  getHeightJitter,
+  getColorVariation,
+  getBlockSpread,
   buildDecoration,
 };

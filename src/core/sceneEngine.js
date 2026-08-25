@@ -25,6 +25,7 @@ import {
   clamp,
   DEG,
 } from './transition.js';
+import { Explorer } from './explorer.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 const BLACK = new THREE.Color(0x000000);
@@ -91,6 +92,7 @@ export class SceneEngine {
       this.scanLightGroup
     );
     this._buildScanLights();
+    this._buildPlayerLight();
 
     const reducedMotion =
       typeof window !== 'undefined' &&
@@ -113,6 +115,10 @@ export class SceneEngine {
     this._needsInstanceUpdate = true;
     this._disposables = [];
     this._running = false;
+
+    this.explorer = new Explorer(this, {
+      onEvent: (event) => this.options.onExplorerEvent?.(event),
+    });
 
     this._bindPointer();
     this._bindResize();
@@ -145,6 +151,9 @@ export class SceneEngine {
     const palette = this.theme.getPalette();
     this.palette = palette;
     this.curvature = this.theme.getCurvature ? this.theme.getCurvature() : 0;
+    this.colorVariation = this.theme.getColorVariation
+      ? this.theme.getColorVariation()
+      : 0.12;
     this.sphereRadius = size * 1.25;
 
     this.scanDark = new THREE.Color(palette.scanDark || '#101010');
@@ -156,7 +165,9 @@ export class SceneEngine {
     this._buildBackground();
     this._buildBlocks(matrix, size);
     this._buildGround(size);
+    this._buildHeightmap(size);
     this._buildDecorations(size);
+    this._buildLandmarks(size);
     this._buildScanOverlay(size);
 
     this._needsInstanceUpdate = true;
@@ -213,15 +224,38 @@ export class SceneEngine {
     const darkCells = [];
     const lightCells = [];
 
+    // 테마가 요청하면 셀마다 높이를 조금씩 흔든다.
+    // 사막의 사구, 도시의 높고 낮은 건물처럼 "같은 높이 블록의 평평한 판" 이
+    // 아니라 기복 있는 지형으로 읽히게 하는 장치. (탑다운 스캔 뷰에서는
+    // 높이가 스캔값으로 수렴하고 스캔 카드가 덮으므로 인식에는 영향이 없다.)
+    const jitter = this.theme.getHeightJitter ? this.theme.getHeightJitter() : 0;
+
     for (let row = 0; row < size; row += 1) {
       for (let col = 0; col < size; col += 1) {
-        const cell = { x: col - (size - 1) / 2, z: row - (size - 1) / 2 };
+        const cell = {
+          x: col - (size - 1) / 2,
+          z: row - (size - 1) / 2,
+          col,
+          row,
+          // 길(light)까지 심하게 흔들면 발밑이 계단투성이가 되어 걸어 다닐 수
+          // 없으므로, 지터는 덩어리(dark)에만 세게 준다.
+          scale:
+            jitter > 0
+              ? 1 +
+                (cellNoise(col, row) - 0.5) *
+                  2 *
+                  jitter *
+                  (matrix[row][col] ? 1 : 0.2)
+              : 1,
+          tint: cellNoise(col * 7 + 3, row * 11 + 5),
+        };
         (matrix[row][col] ? darkCells : lightCells).push(cell);
       }
     }
 
     this.darkCells = darkCells;
     this.lightCells = lightCells;
+    this.matrix = matrix;
 
     this.darkMesh = this._createInstancedMesh(true, darkCells.length);
     this.lightMesh = this._createInstancedMesh(false, lightCells.length);
@@ -241,6 +275,15 @@ export class SceneEngine {
     mesh.count = count;
     mesh.frustumCulled = false;
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+
+    // 인스턴스마다 밝기를 조금씩 달리한다.
+    // 같은 색 블록이 맞붙어 있으면 1인칭에서 벽이 통짜 단색 화면으로 보여
+    // 어디가 어디인지 알 수 없다. 이 변주가 블록 경계를 드러낸다.
+    mesh.instanceColor = new THREE.InstancedBufferAttribute(
+      new Float32Array(Math.max(count, 1) * 3),
+      3
+    );
+    mesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
 
     this._trackDisposable(mesh);
 
@@ -310,6 +353,30 @@ export class SceneEngine {
     this.scanKey.position.set(38, 120, 26);
     this.scanLightGroup.add(this.scanAmbient, this.scanKey);
   }
+
+  /**
+   * 1인칭 탐험 중에만 켜지는 보조 조명.
+   *
+   * 처음엔 플레이어를 따라다니는 포인트라이트로 만들었지만, 벽에 바짝 붙으면
+   * 거리 감쇠 때문에 화면이 하얗게 타버린다. 위치 개념이 없는 앰비언트 필로
+   * 바꿔 어떤 자세에서도 밝기가 폭주하지 않게 했다.
+   */
+  _buildPlayerLight() {
+    this.playerLight = new THREE.AmbientLight(0xffe6bd, 0);
+    this.playerLight.visible = false;
+    this.scene.add(this.playerLight);
+  }
+
+  /** @param {boolean} on */
+  setPlayerLight(on) {
+    if (!this.playerLight) return;
+    const strength = this.theme?.getPlayerLight?.() ?? 0.4;
+    this.playerLight.visible = on && strength > 0;
+    this.playerLight.intensity = on ? strength : 0;
+  }
+
+  /** 앰비언트라 위치는 쓰지 않는다 (컨트롤러 쪽 호출부를 위해 남겨 둔다) */
+  movePlayerLight() {}
 
   /**
    * progress 가 커질수록 페이드인되는 "스캔 카드".
@@ -406,11 +473,22 @@ export class SceneEngine {
    * 대신 QR 판을 침범할 수 있는 큰 오브젝트는 반드시 사라져야 한다.
    */
   _buildDecorations(size) {
-    const specs = this.theme.placeDecorations(size) || [];
+    const specs = this.theme.placeDecorations(size, this.matrix) || [];
     for (const spec of specs) {
       const obj = this.theme.buildDecoration?.(spec);
       if (!obj) continue;
-      applySpecTransform(obj, spec);
+
+      // snapToGround 스펙은 블록 위에 얹는다 (예: 둔덕 위의 나무)
+      let placed = spec;
+      if (spec.snapToGround) {
+        const [sx = 0, , sz = 0] = spec.position || [];
+        placed = {
+          ...spec,
+          position: [sx, this.getHeightAt(sx, sz) + (spec.lift ?? 0), sz],
+        };
+      }
+
+      applySpecTransform(obj, placed);
       this._applyDomeToObject(obj, 1);
       (spec.persistent ? this.sceneryGroup : this.decorGroup).add(obj);
       this._trackDisposable(obj);
@@ -419,18 +497,87 @@ export class SceneEngine {
   }
 
   /* --------------------------------------------------------------- */
+  /* 하이트맵 (1인칭 탐험 모드의 지형)                                  */
+  /* --------------------------------------------------------------- */
+
+  /**
+   * 3D 뷰 기준의 셀별 높이표를 만든다.
+   * QR 매트릭스가 그대로 지형이 되므로 별도의 충돌 메시가 필요 없다.
+   */
+  _buildHeightmap(size) {
+    const darkH = this.darkMesh?.height3d ?? 2.2;
+    const lightH = this.lightMesh?.height3d ?? 0.5;
+
+    const heights = new Float32Array(size * size);
+    for (const cell of this.darkCells) {
+      heights[cell.row * size + cell.col] = darkH * cell.scale;
+    }
+    for (const cell of this.lightCells) {
+      heights[cell.row * size + cell.col] = lightH * cell.scale;
+    }
+
+    this.heightmap = { size, heights };
+  }
+
+  /**
+   * 월드 좌표의 지면 높이. 그리드 밖은 0(바닥판).
+   * @param {number} x
+   * @param {number} z
+   * @returns {number}
+   */
+  getHeightAt(x, z) {
+    const map = this.heightmap;
+    if (!map) return 0;
+
+    const col = Math.floor(x + map.size / 2);
+    const row = Math.floor(z + map.size / 2);
+    if (col < 0 || row < 0 || col >= map.size || row >= map.size) return 0;
+    return map.heights[row * map.size + col];
+  }
+
+  /* --------------------------------------------------------------- */
+  /* 랜드마크 (탐험 중 발견하는 지점)                                   */
+  /* --------------------------------------------------------------- */
+
+  _buildLandmarks(size) {
+    this.landmarks = [];
+    const specs = this.theme.placeLandmarks?.(size, this.matrix) || [];
+
+    for (const spec of specs) {
+      const y = this.getHeightAt(spec.x, spec.z);
+      const beacon = buildBeacon(spec.color || this.palette.accent || '#FFD972');
+      beacon.position.set(spec.x, y, spec.z);
+      beacon.userData.anchor = { x: spec.x, y, z: spec.z };
+      beacon.userData.baseQuaternion = beacon.quaternion.clone();
+      this.decorGroup.add(beacon);
+      this._trackDisposable(beacon);
+
+      this.landmarks.push({
+        ...spec,
+        y,
+        beacon,
+        found: false,
+      });
+    }
+  }
+
+  /* --------------------------------------------------------------- */
   /* 전환 상태 적용                                                    */
   /* --------------------------------------------------------------- */
 
   _state() {
     const size = this.qr?.size ?? 25;
-    return computeTransitionState(this.transition.progress, {
+    // 1인칭 탐험 중에는 progress 0 의 3D 씬을, 다만 지형이 휘지 않도록
+    // 곡률 0 으로 고정해 사용한다. (구면 위를 걷게 하면 발밑이 어긋난다)
+    const exploring = this.explorer?.active;
+    return computeTransitionState(exploring ? 0 : this.transition.progress, {
       matrixSize: size,
       quietZone: this.qr?.quietZone ?? 4,
       aspect: this.camera.aspect,
-      curvature: this.curvature ?? 0,
+      curvature: exploring ? 0 : (this.curvature ?? 0),
       darkHeight3d: this.darkMesh?.height3d,
       lightHeight3d: this.lightMesh?.height3d,
+      blockSpread: this.theme?.getBlockSpread?.(),
     });
   }
 
@@ -456,6 +603,9 @@ export class SceneEngine {
   }
 
   _applyCamera(state) {
+    // 1인칭 탐험 중에는 카메라를 탐험 컨트롤러가 온전히 소유한다
+    if (this.explorer?.active) return;
+
     const interact = state.interactivity;
     const azimuth =
       state.azimuth + (this.autoAzimuth + this.userAzimuth) * interact;
@@ -496,6 +646,10 @@ export class SceneEngine {
     const bend = state.bend;
     const sxz = state.blockScaleXZ;
 
+    // 스캔 뷰로 갈수록 밝기 변주를 1(=무변화)로 되돌려 QR 대비를 균일하게 만든다
+    const variation = this.colorVariation * (1 - state.flat);
+    const colors = entry.mesh.instanceColor;
+
     for (let i = 0; i < cells.length; i += 1) {
       const { x, z } = cells[i];
       let y = 0;
@@ -511,12 +665,18 @@ export class SceneEngine {
       }
 
       dummy.position.set(x, y, z);
-      dummy.scale.set(sxz, height, sxz);
+      dummy.scale.set(sxz, height * (cells[i].scale ?? 1), sxz);
       dummy.updateMatrix();
       entry.mesh.setMatrixAt(i, dummy.matrix);
+
+      if (colors) {
+        const tint = 1 + (cells[i].tint - 0.5) * 2 * variation;
+        colors.setXYZ(i, tint, tint, tint);
+      }
     }
 
     entry.mesh.instanceMatrix.needsUpdate = true;
+    if (colors) colors.needsUpdate = true;
     entry.mesh.computeBoundingSphere();
   }
 
@@ -661,6 +821,19 @@ export class SceneEngine {
     return this.transition.toggle();
   }
 
+  /** 1인칭 탐험 시작. 성공하면 true */
+  enterExplorer() {
+    return this.explorer.enter();
+  }
+
+  exitExplorer() {
+    this.explorer.exit();
+  }
+
+  get isExploring() {
+    return this.explorer.active;
+  }
+
   setProgress(value, { animate = true } = {}) {
     if (animate) this.transition.setTarget(value);
     else {
@@ -702,6 +875,7 @@ export class SceneEngine {
         curvature: this.curvature ?? 0,
         darkHeight3d: this.darkMesh?.height3d,
         lightHeight3d: this.lightMesh?.height3d,
+        blockSpread: this.theme?.getBlockSpread?.(),
       });
 
       // 캡처 중에는 자동 회전/드래그 오프셋을 무시해 항상 정면 탑다운으로 담는다.
@@ -752,22 +926,48 @@ export class SceneEngine {
 
   _tick() {
     const dt = Math.min(this._clock.getDelta(), 0.1);
-    const changed = this.transition.update(dt);
+    this._elapsed = (this._elapsed || 0) + dt;
+
+    const exploring = this.explorer?.active;
+    const changed = exploring ? false : this.transition.update(dt);
     const state = this._state();
 
-    if (!this._dragging) {
+    if (!this._dragging && !exploring) {
       this.autoAzimuth += dt * 3.2 * state.interactivity;
     }
 
     if (changed || this._needsInstanceUpdate) {
       this._applyState(state);
       this._needsInstanceUpdate = false;
-    } else {
+    } else if (!exploring) {
       this._applyCamera(state);
     }
 
+    // 테마가 스스로 움직이는 오브젝트를 가질 수 있다 (예: 도시의 자동차)
+    this.theme?.update?.(dt, {
+      elapsed: this._elapsed,
+      decorGroup: this.decorGroup,
+      sceneryGroup: this.sceneryGroup,
+      matrixSize: this.qr?.size ?? 0,
+    });
+
+    this._animateLandmarks(dt);
+
+    if (exploring) this.explorer.update(dt);
+
     this._updateBillboards();
     this.renderer.render(this.scene, this.camera);
+  }
+
+  _animateLandmarks(dt) {
+    if (!this.landmarks?.length) return;
+    for (const landmark of this.landmarks) {
+      if (landmark.found) continue;
+      const gem = landmark.beacon.getObjectByName('beacon-gem');
+      if (!gem) continue;
+      gem.rotation.y += dt * 1.6;
+      gem.position.y = 1.15 + Math.sin(this._elapsed * 2.4 + landmark.x) * 0.16;
+    }
   }
 
   /** 항상 카메라를 바라봐야 하는 배경 오브젝트(해·달 등) */
@@ -800,6 +1000,7 @@ export class SceneEngine {
 
     const onMove = (e) => {
       if (pointerId === null || e.pointerId !== pointerId) return;
+      if (this.explorer?.active) return; // 시점 조작은 탐험 컨트롤러가 맡는다
       const dx = e.clientX - startX;
       const dy = e.clientY - startY;
       if (!moved && Math.hypot(dx, dy) < 8) return;
@@ -817,7 +1018,7 @@ export class SceneEngine {
       el.releasePointerCapture?.(pointerId);
       pointerId = null;
       this._dragging = false;
-      if (!moved) this.toggleView();
+      if (!moved && !this.explorer?.active) this.toggleView();
     };
 
     el.addEventListener('pointerdown', onDown);
@@ -828,6 +1029,7 @@ export class SceneEngine {
       this._dragging = false;
     });
     el.addEventListener('keydown', (e) => {
+      if (this.explorer?.active) return;
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         this.toggleView();
@@ -880,10 +1082,13 @@ export class SceneEngine {
     this.lightMesh = null;
     this.ground = null;
     this.lights = [];
+    this.landmarks = [];
+    this.heightmap = null;
   }
 
   dispose() {
     this.stop();
+    this.explorer.dispose();
     this._clearScene();
     this._resizeObserver?.disconnect();
     this.renderer.dispose();
@@ -918,6 +1123,63 @@ export function normalizeBlockGeometry(geometry) {
   geometry.computeBoundingBox();
   geometry.computeBoundingSphere();
   return geometry;
+}
+
+/** 탐험 중 눈에 띄어야 하는 랜드마크 표식 (빛기둥 + 회전하는 마름모) */
+function buildBeacon(color) {
+  const tint = new THREE.Color(color);
+
+  const pillar = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.16, 0.16, 3.4, 10, 1, true),
+    new THREE.MeshBasicMaterial({
+      color: tint,
+      transparent: true,
+      opacity: 0.3,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      fog: false,
+      toneMapped: false,
+    })
+  );
+  pillar.position.y = 1.7;
+
+  const gem = new THREE.Mesh(
+    new THREE.OctahedronGeometry(0.3, 0),
+    new THREE.MeshBasicMaterial({ color: tint, fog: false, toneMapped: false })
+  );
+  gem.position.y = 1.15;
+  gem.name = 'beacon-gem';
+
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(0.5, 0.66, 20),
+    new THREE.MeshBasicMaterial({
+      color: tint,
+      transparent: true,
+      opacity: 0.5,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      fog: false,
+      toneMapped: false,
+    })
+  );
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = 0.06;
+
+  const g = new THREE.Group();
+  g.add(pillar, gem, ring);
+  g.userData.kind = 'beacon';
+  return g;
+}
+
+/**
+ * 셀 좌표로부터 0~1 의 결정론적 노이즈를 만든다.
+ * 같은 QR·같은 테마면 항상 같은 지형이 나오도록.
+ */
+function cellNoise(col, row) {
+  let h = (col * 374761393 + row * 668265263) >>> 0;
+  h = (h ^ (h >>> 13)) >>> 0;
+  h = Math.imul(h, 1274126177) >>> 0;
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 
 function createLight(spec) {

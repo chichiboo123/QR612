@@ -18,6 +18,7 @@ import {
   group,
   ringPoint,
   squareRingPoint,
+  pickWalkableCells,
   makeRandom,
 } from './_shared.js';
 
@@ -67,6 +68,11 @@ export function getBlockGeometry(isDark) {
     material: flatMaterial(PALETTE.light, { emissive: '#0C2317' }),
     height: 0.42,
   };
+}
+
+/** 1인칭 탐험 중 보조 조명 세기 — 유리돔 안이라 은은하게 */
+export function getPlayerLight() {
+  return 0.45;
 }
 
 export function getBackgroundSetup() {
@@ -128,6 +134,45 @@ export function placeDecorations(matrixSize) {
   }
 
   return specs;
+}
+
+export function placeLandmarks(matrixSize, matrix) {
+  const entries = [
+    {
+      title: '장미 발치',
+      message: '가시 네 개로 세상을 다 막을 수 있다고 믿었지요.',
+      color: '#F2B3C5',
+    },
+    {
+      title: '물뿌리개가 놓인 곳',
+      message: '아침마다 여기서 물을 주었습니다.',
+      color: '#C2D6DF',
+    },
+    {
+      title: '유리돔 이음새',
+      message: '바람이 아주 조금 새어 들어옵니다.',
+      color: '#E8F6EE',
+    },
+    {
+      title: '떨어진 꽃잎 더미',
+      message: '밟으면 소리가 납니다.',
+      color: '#F5C2D0',
+    },
+    {
+      title: '가장 높은 타일',
+      message: '여기서 보면 정원이 동그랗다는 걸 알 수 있습니다.',
+      color: '#FFF0F4',
+    },
+    {
+      title: '새싹이 돋은 자리',
+      message: '다음 장미가 준비되고 있습니다.',
+      color: '#6FBF87',
+    },
+  ];
+
+  return pickWalkableCells(matrixSize, matrix, entries.length, 67).map(
+    (point, i) => ({ ...entries[i], ...point })
+  );
 }
 
 export function buildDecoration(spec) {
@@ -322,7 +367,9 @@ export default {
   getBlockGeometry,
   getPalette,
   placeDecorations,
+  placeLandmarks,
   getBackgroundSetup,
+  getPlayerLight,
   getCurvature,
   buildDecoration,
 };

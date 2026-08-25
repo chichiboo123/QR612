@@ -19,6 +19,7 @@ import {
   group,
   ringPoint,
   squareRingPoint,
+  pickWalkableCells,
   makeRandom,
 } from './_shared.js';
 
@@ -71,6 +72,11 @@ export function getBlockGeometry(isDark) {
   };
 }
 
+/** 1인칭 탐험 중 보조 조명 세기 — 한낮이라 거의 필요 없다 */
+export function getPlayerLight() {
+  return 0.25;
+}
+
 export function getBackgroundSetup() {
   return {
     background: PALETTE.sky,
@@ -95,9 +101,25 @@ export function getBackgroundSetup() {
   };
 }
 
-export function placeDecorations(matrixSize) {
+export function placeDecorations(matrixSize, matrix) {
   const rand = makeRandom(matrixSize * 61 + 7);
   const specs = [];
+
+  // 그리드 안쪽 블록 위에도 풀포기를 얹어 1인칭 시야에 볼거리를 만든다
+  if (matrix) {
+    for (let row = 3; row < matrixSize - 3; row += 3) {
+      for (let col = 3; col < matrixSize - 3; col += 3) {
+        if (!matrix[row][col] || rand() > 0.45) continue;
+        specs.push({
+          type: 'tuft',
+          position: [col - (matrixSize - 1) / 2, 0, row - (matrixSize - 1) / 2],
+          rotation: [0, rand() * Math.PI * 2, 0],
+          scale: 0.5 + rand() * 0.4,
+          snapToGround: true,
+        });
+      }
+    }
+  }
 
   // 바오밥나무 2그루 — 행성 반대편 가장자리에
   const baobabAngles = [-58, 132];
@@ -146,6 +168,45 @@ export function placeDecorations(matrixSize) {
   }
 
   return specs;
+}
+
+export function placeLandmarks(matrixSize, matrix) {
+  const entries = [
+    {
+      title: '바오밥 씨앗이 떨어진 자리',
+      message: '작은 싹이 하나 올라와 있습니다. 뽑아야 할까요, 둬야 할까요?',
+      color: '#6FA87C',
+    },
+    {
+      title: '화산 청소하는 곳',
+      message: '굴뚝을 청소해 두면 조용히 타오릅니다.',
+      color: '#F0906A',
+    },
+    {
+      title: '의자를 옮기던 길',
+      message: '여기서 의자를 조금만 당기면 노을을 한 번 더 볼 수 있습니다.',
+      color: '#E8B93F',
+    },
+    {
+      title: '행성의 가장 높은 곳',
+      message: '점프해서 올라가면 지평선이 둥근 게 보입니다.',
+      color: '#FFD98A',
+    },
+    {
+      title: '해가 마흔세 번 지는 자리',
+      message: '슬플 때는 노을이 보고 싶어지는 법이지요.',
+      color: '#FFC178',
+    },
+    {
+      title: '아무도 없는 반대편',
+      message: '발소리만 들립니다.',
+      color: '#BFD9F2',
+    },
+  ];
+
+  return pickWalkableCells(matrixSize, matrix, entries.length, 37).map(
+    (point, i) => ({ ...entries[i], ...point })
+  );
 }
 
 export function buildDecoration(spec) {
@@ -287,7 +348,9 @@ export default {
   getBlockGeometry,
   getPalette,
   placeDecorations,
+  placeLandmarks,
   getBackgroundSetup,
+  getPlayerLight,
   getCurvature,
   buildDecoration,
 };

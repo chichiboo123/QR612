@@ -20,6 +20,7 @@ import {
   group,
   ringPoint,
   squareRingPoint,
+  pickWalkableCells,
   makeRandom,
 } from './_shared.js';
 
@@ -68,6 +69,11 @@ export function getBlockGeometry(isDark) {
     material: flatMaterial(PALETTE.light, { emissive: '#0B1637' }),
     height: 0.24,
   };
+}
+
+/** 1인칭 탐험 중 보조 조명 세기 — 밤하늘 아래는 발밑이 잘 안 보인다 */
+export function getPlayerLight() {
+  return 0.9;
 }
 
 export function getBackgroundSetup() {
@@ -147,6 +153,45 @@ export function placeDecorations(matrixSize) {
   }
 
   return specs;
+}
+
+export function placeLandmarks(matrixSize, matrix) {
+  const entries = [
+    {
+      title: '가로등이 비치는 자리',
+      message: '불빛이 닿는 데까지가 오늘 걸을 수 있는 거리입니다.',
+      color: '#FFD972',
+    },
+    {
+      title: '별이 내려앉은 곳',
+      message: '바닥에 잔별 하나가 굴러다닙니다.',
+      color: '#FFFFFF',
+    },
+    {
+      title: '소행성이 지나간 자리',
+      message: '머리 위로 조용히 하나가 지나갔습니다.',
+      color: '#8FA6E0',
+    },
+    {
+      title: '가장 어두운 골목',
+      message: '여기서는 별이 제일 잘 보입니다.',
+      color: '#5A72C4',
+    },
+    {
+      title: '높은 별기둥 위',
+      message: '점프해서 올라가면 은하수가 발밑에 깔립니다.',
+      color: '#FFE9A8',
+    },
+    {
+      title: '불 꺼진 자리',
+      message: '누군가 방금 등불을 껐습니다.',
+      color: '#F5A8C0',
+    },
+  ];
+
+  return pickWalkableCells(matrixSize, matrix, entries.length, 53).map(
+    (point, i) => ({ ...entries[i], ...point })
+  );
 }
 
 export function buildDecoration(spec) {
@@ -254,7 +299,9 @@ export default {
   getBlockGeometry,
   getPalette,
   placeDecorations,
+  placeLandmarks,
   getBackgroundSetup,
+  getPlayerLight,
   getCurvature,
   buildDecoration,
 };

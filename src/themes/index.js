@@ -10,15 +10,20 @@
  *   getBackgroundSetup()     → { background, fog, lights, objects }
  * 선택 확장
  *   getCurvature()           → 구면 배치 강도(0 = 평면)
+ *   getHeightJitter()        → 셀별 높이 흔들기 정도(사구·스카이라인)
  *   buildDecoration(spec)    → THREE.Object3D (placeDecorations 스펙을 실제 오브젝트로)
+ *   placeLandmarks(size, m)  → 1인칭 탐험 중 발견하는 지점 배열
+ *   update(dt, ctx)          → 프레임마다 호출 (예: 도시의 자동차, 연못 물결)
  */
 
 import b612 from './b612.js';
 import starryNight from './starryNight.js';
 import desertFox from './desertFox.js';
 import rose from './rose.js';
+import cityNight from './cityNight.js';
+import forestRest from './forestRest.js';
 
-export const THEMES = [b612, starryNight, desertFox, rose];
+export const THEMES = [b612, starryNight, desertFox, rose, cityNight, forestRest];
 
 export const DEFAULT_THEME_ID = b612.id;
 
@@ -27,4 +32,4 @@ export function getTheme(id) {
   return THEMES.find((t) => t.id === id) || THEMES[0];
 }
 
-export { b612, starryNight, desertFox, rose };
+export { b612, starryNight, desertFox, rose, cityNight, forestRest };

@@ -129,6 +129,53 @@ export function squareRingPoint(matrixSize, angleDeg, pad = 2, quietZone = 4) {
   return [dx * scale, dz * scale];
 }
 
+/**
+ * 탐험 중 걸어서 닿을 수 있는 자리(= light 모듈)를 서로 떨어뜨려 고른다.
+ * 랜드마크를 dark 모듈 위에 놓으면 올라가지 못해 영영 못 찾을 수 있다.
+ *
+ * @param {number} matrixSize
+ * @param {boolean[][]} matrix
+ * @param {number} count 필요한 자리 수
+ * @param {number} [seed]
+ * @returns {{x:number, z:number}[]} 월드 좌표 배열 (요청보다 적을 수 있음)
+ */
+export function pickWalkableCells(matrixSize, matrix, count, seed = 1) {
+  const rand = makeRandom(matrixSize * 911 + seed);
+  const candidates = [];
+
+  // 가장자리 2칸은 파인더 패턴 주변이라 제외한다
+  for (let row = 2; row < matrixSize - 2; row += 1) {
+    for (let col = 2; col < matrixSize - 2; col += 1) {
+      if (matrix?.[row]?.[col]) continue;
+      candidates.push({
+        x: col - (matrixSize - 1) / 2,
+        z: row - (matrixSize - 1) / 2,
+      });
+    }
+  }
+
+  const chosen = [];
+  const minGap = Math.max(matrixSize / 5, 4);
+
+  while (chosen.length < count && candidates.length) {
+    let placed = false;
+    for (let attempt = 0; attempt < 240; attempt += 1) {
+      const candidate = candidates[Math.floor(rand() * candidates.length)];
+      if (!candidate) break;
+      const tooClose = chosen.some(
+        (c) => Math.hypot(c.x - candidate.x, c.z - candidate.z) < minGap
+      );
+      if (tooClose) continue;
+      chosen.push(candidate);
+      placed = true;
+      break;
+    }
+    if (!placed) break;
+  }
+
+  return chosen;
+}
+
 /** 그룹 헬퍼 */
 export function group(...children) {
   const g = new THREE.Group();

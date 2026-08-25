@@ -18,6 +18,7 @@ import {
   syncAddressBar,
 } from './ui/shareButton.js';
 import { createDownloadButton } from './ui/downloadButton.js';
+import { createExplorerHud } from './ui/explorerHud.js';
 import { createFooter } from './ui/footer.js';
 import { createCredits } from './ui/credits.js';
 
@@ -120,6 +121,20 @@ viewToggle.className = 'btn btn-secondary btn--block';
 viewToggle.disabled = true;
 viewToggle.addEventListener('click', () => engine?.toggleView());
 
+const travelButton = document.createElement('button');
+travelButton.type = 'button';
+travelButton.className = 'btn btn-travel btn--block btn-group__wide';
+travelButton.disabled = true;
+travelButton.innerHTML = `
+  <span class="material-icons-outlined" aria-hidden="true">directions_walk</span>
+  QR 여행 — 1인칭으로 걸어 들어가기
+`;
+travelButton.addEventListener('click', () => {
+  if (!engine) return;
+  if (engine.isExploring) engine.exitExplorer();
+  else engine.enterExplorer();
+});
+
 const shareButton = createShareButton({
   getState: () => (state.url ? { url: state.url, themeId: state.themeId } : null),
   onMessage: setActionMessage,
@@ -133,7 +148,7 @@ const downloadButton = createDownloadButton({
 viewToggle.classList.add('btn-group__wide');
 actions
   .querySelector('.btn-group')
-  .append(viewToggle, shareButton.element, downloadButton.element);
+  .append(travelButton, viewToggle, shareButton.element, downloadButton.element);
 
 urlInput.element.classList.add('panel--url');
 themePicker.element.classList.add('panel--theme');
@@ -146,10 +161,21 @@ main.append(urlInput.element, stageColumn, themePicker.element, actions);
 /* ------------------------------------------------------------------ */
 
 let engine = null;
+let explorerHud = null;
 
 try {
-  engine = new SceneEngine(canvasHost, { onViewChange: updateViewLabels });
+  engine = new SceneEngine(canvasHost, {
+    onViewChange: updateViewLabels,
+    onExplorerEvent: handleExplorerEvent,
+  });
   engine.start();
+
+  explorerHud = createExplorerHud({
+    stage,
+    canvas: engine.renderer.domElement,
+    explorer: engine.explorer,
+    onExit: () => engine.exitExplorer(),
+  });
 } catch (error) {
   console.error('[QR612] WebGL 초기화 실패', error);
   stage.querySelector('.stage__empty').innerHTML = `
@@ -169,6 +195,7 @@ try {
  */
 function generate(url, themeId) {
   if (!engine) return;
+  if (engine.isExploring) engine.exitExplorer();
 
   try {
     const qr = encodeToMatrix(url, { errorCorrectionLevel: 'Q' });
@@ -185,6 +212,7 @@ function generate(url, themeId) {
     badge.hidden = false;
     hint.hidden = false;
     viewToggle.disabled = false;
+    travelButton.disabled = false;
     shareButton.setEnabled(true);
     downloadButton.setEnabled(true);
 
@@ -215,6 +243,8 @@ function generate(url, themeId) {
 /** 테마만 교체하고 씬을 리빌드한다. (progress 는 유지) */
 function applyTheme(themeId) {
   if (!engine || !state.qr) return;
+  // 테마를 바꾸면 지형 자체가 바뀌므로 탐험을 끝내고 다시 들어가게 한다
+  if (engine.isExploring) engine.exitExplorer();
   engine.setTheme(getTheme(themeId));
 }
 
@@ -243,6 +273,48 @@ function updateViewLabels(target) {
        <span>스마트폰 카메라로 <strong>바로 스캔</strong>해 보세요. 화면을 다시 탭하면 3D 장면으로 돌아갑니다.</span>`
     : `<span class="material-icons-outlined" aria-hidden="true">touch_app</span>
        <span>3D 장면을 드래그하면 시점을 돌릴 수 있고, <strong>탭하면 스캔 가능한 QR코드</strong>로 전환됩니다.</span>`;
+}
+
+/**
+ * 1인칭 탐험 상태 변화를 UI 에 반영한다.
+ * @param {{type: string, total?: number, found?: number, landmark?: object}} event
+ */
+function handleExplorerEvent(event) {
+  if (event.type === 'enter') {
+    stage.dataset.mode = 'travel';
+    explorerHud?.show(event.total);
+    travelButton.innerHTML = `
+      <span class="material-icons-outlined" aria-hidden="true">logout</span>
+      여행 끝내기
+    `;
+    viewToggle.disabled = true;
+    setActionMessage(
+      event.total > 0
+        ? `QR 속을 걷는 중입니다. 빛나는 지점 ${event.total}곳을 찾아보세요.`
+        : 'QR 속을 걷는 중입니다.'
+    );
+    return;
+  }
+
+  if (event.type === 'exit') {
+    stage.dataset.mode = 'view';
+    explorerHud?.hide();
+    travelButton.innerHTML = `
+      <span class="material-icons-outlined" aria-hidden="true">directions_walk</span>
+      QR 여행 — 1인칭으로 걸어 들어가기
+    `;
+    viewToggle.disabled = false;
+    setActionMessage('');
+    return;
+  }
+
+  if (event.type === 'discover') {
+    explorerHud?.setCount(event.found, event.total);
+    explorerHud?.announce(event.landmark);
+    if (event.found === event.total) {
+      setActionMessage('이 QR 안의 모든 지점을 찾았습니다.', 'success');
+    }
+  }
 }
 
 function setActionMessage(text, tone = 'info') {
