@@ -74,6 +74,14 @@ export const TRANSITION = {
   flattenCurveStart: 0.12,
   flattenCurveEnd: 0.72,
 
+  /**
+   * 스캔 보장 오버레이가 페이드인되는 구간.
+   * 마지막 순간에 "정확히 1×1 모듈, 순수 흑백" 평면을 겹쳐 올려
+   * 테마가 어떤 지오메트리를 쓰든 스캔 성공률을 보장한다.
+   */
+  scanOverlayStart: 0.86,
+  scanOverlayEnd: 1.0,
+
   /** 전환 소요 시간(초) */
   duration: 1.15,
 };
@@ -233,6 +241,12 @@ export function computeTransitionState(progress, ctx) {
     decorOpacity,
     flat,
     bend,
+    /** 스캔 보장 오버레이 불투명도 */
+    scanOverlay: smoothstep(
+      TRANSITION.scanOverlayStart,
+      TRANSITION.scanOverlayEnd,
+      p
+    ),
     /** 3D 자유 조작(드래그/자동회전) 허용 정도 */
     interactivity: 1 - smoothstep(0.05, 0.5, p),
   };

@@ -134,6 +134,7 @@ export class SceneEngine {
     this._buildBlocks(matrix, size);
     this._buildGround(size);
     this._buildDecorations(size);
+    this._buildScanOverlay(size);
 
     this._needsInstanceUpdate = true;
     this.resize();
@@ -266,6 +267,80 @@ export class SceneEngine {
   }
 
   /* --------------------------------------------------------------- */
+  /* 스캔 보장 오버레이                                                */
+  /* --------------------------------------------------------------- */
+
+  /**
+   * progress 가 1 에 가까워질 때만 나타나는 "정답 QR" 레이어.
+   *
+   * - dark 모듈: 정확히 1×1 크기의 순수 scanDark 평면
+   * - 바탕: QR + quiet zone 을 덮는 순수 scanLight 평면
+   * - depthTest 를 끄고 렌더 순서를 최상단으로 두어 장식/조명의 영향을 완전히 차단
+   *
+   * 덕분에 테마는 블록 지오메트리를 자유롭게(별 모양, 원형 타일 등) 쓰면서도
+   * 탑다운 뷰의 스캔 성공률을 잃지 않는다.
+   */
+  _buildScanOverlay(size) {
+    const quiet = this.qr.quietZone ?? 4;
+    const span = size + quiet * 2;
+
+    const baseGeo = new THREE.PlaneGeometry(span, span);
+    baseGeo.rotateX(-Math.PI / 2);
+    const baseMat = new THREE.MeshBasicMaterial({
+      color: this.scanLight.clone(),
+      transparent: true,
+      opacity: 0,
+      depthTest: false,
+      depthWrite: false,
+      fog: false,
+      toneMapped: false,
+    });
+    const base = new THREE.Mesh(baseGeo, baseMat);
+    base.position.y = 0.4;
+    base.renderOrder = 900;
+    base.visible = false;
+    base.frustumCulled = false;
+
+    const moduleGeo = new THREE.PlaneGeometry(1, 1);
+    moduleGeo.rotateX(-Math.PI / 2);
+    const moduleMat = new THREE.MeshBasicMaterial({
+      color: this.scanDark.clone(),
+      transparent: true,
+      opacity: 0,
+      depthTest: false,
+      depthWrite: false,
+      fog: false,
+      toneMapped: false,
+    });
+    const modules = new THREE.InstancedMesh(
+      moduleGeo,
+      moduleMat,
+      Math.max(this.darkCells.length, 1)
+    );
+    modules.count = this.darkCells.length;
+    modules.renderOrder = 901;
+    modules.visible = false;
+    modules.frustumCulled = false;
+
+    const dummy = this._dummy;
+    for (let i = 0; i < this.darkCells.length; i += 1) {
+      const { x, z } = this.darkCells[i];
+      dummy.position.set(x, 0.42, z);
+      dummy.quaternion.identity();
+      // 1.002 — 부동소수 오차로 모듈 사이에 실틈이 생기지 않도록 아주 살짝 겹친다
+      dummy.scale.set(1.002, 1, 1.002);
+      dummy.updateMatrix();
+      modules.setMatrixAt(i, dummy.matrix);
+    }
+    modules.instanceMatrix.needsUpdate = true;
+
+    this.scene.add(base, modules);
+    this._trackDisposable(base);
+    this._trackDisposable(modules);
+    this.scanOverlay = { base, baseMat, modules, moduleMat };
+  }
+
+  /* --------------------------------------------------------------- */
   /* 장식 오브젝트                                                     */
   /* --------------------------------------------------------------- */
 
@@ -304,6 +379,19 @@ export class SceneEngine {
     this._applyGround(state);
     this._applyMaterials(state);
     this._applyDecorFade(state);
+    this._applyScanOverlay(state);
+  }
+
+  _applyScanOverlay(state) {
+    if (!this.scanOverlay) return;
+    const { base, baseMat, modules, moduleMat } = this.scanOverlay;
+    const o = state.scanOverlay;
+    const visible = o > 0.001;
+
+    base.visible = visible;
+    modules.visible = visible;
+    baseMat.opacity = o;
+    moduleMat.opacity = o;
   }
 
   _applyCamera(state) {
@@ -538,7 +626,16 @@ export class SceneEngine {
       this._applyCamera(state);
     }
 
+    this._updateBillboards();
     this.renderer.render(this.scene, this.camera);
+  }
+
+  /** 항상 카메라를 바라봐야 하는 배경 오브젝트(해·달 등) */
+  _updateBillboards() {
+    if (!this.celestialGroup.visible) return;
+    for (const obj of this.celestialGroup.children) {
+      if (obj.userData.billboard) obj.quaternion.copy(this.camera.quaternion);
+    }
   }
 
   /* --------------------------------------------------------------- */
@@ -621,6 +718,11 @@ export class SceneEngine {
   }
 
   _clearScene() {
+    if (this.scanOverlay) {
+      this.scene.remove(this.scanOverlay.base, this.scanOverlay.modules);
+      this.scanOverlay = null;
+    }
+
     for (const group of [
       this.blockGroup,
       this.decorGroup,
