@@ -196,40 +196,60 @@ export function placeDecorations(matrixSize, matrix) {
 export function placeLandmarks(matrixSize, matrix) {
   const entries = [
     {
-      title: '연못가',
-      message: '물 위로 나뭇잎 하나가 천천히 지나갑니다.',
-      color: '#8FD6E8',
+      type: 'squirrel',
+      title: '도토리를 든 다람쥐',
+      message: '다람쥐가 꼬리를 흔들며 나무 뒤로 몸을 숨깁니다.',
     },
     {
-      title: '이끼 낀 바위',
-      message: '손을 대면 서늘합니다. 여기서 잠깐 쉬어 가세요.',
-      color: '#A6E38F',
+      type: 'butterfly',
+      title: '숲나비',
+      message: '노란 나비가 고사리 위를 가볍게 맴돕니다.',
     },
     {
-      title: '새소리가 나는 곳',
-      message: '위를 올려다보면 잎 사이로 하늘이 조각나 있습니다.',
-      color: '#FFE38A',
+      type: 'forestBird',
+      title: '파랑새',
+      message: '작은 새가 고개를 갸웃하고 짧게 지저귑니다.',
     },
     {
-      title: '버섯 고리',
-      message: '동그랗게 돋아난 버섯들. 밟지 않게 조심.',
-      color: '#F49FC4',
+      type: 'wildflower',
+      title: '바람꽃',
+      message: '하얀 꽃잎이 숲바람을 따라 천천히 흔들립니다.',
     },
     {
-      title: '쓰러진 나무',
-      message: '넘어간 줄기를 밟고 위로 올라갈 수 있습니다.',
-      color: '#C9A227',
+      type: 'sapling',
+      title: '어린 참나무',
+      message: '막 펼쳐진 연두 잎이 햇빛을 향하고 있습니다.',
     },
     {
-      title: '가장 깊은 그늘',
-      message: '숲에서 가장 조용한 자리입니다.',
-      color: '#7FE3C4',
+      type: 'mushroomFriend',
+      title: '꼬마 버섯 가족',
+      message: '크기가 다른 버섯 셋이 나란히 돋아났습니다.',
     },
   ];
 
   return pickWalkableCells(matrixSize, matrix, entries.length, 29).map(
     (point, i) => ({ ...entries[i], ...point })
   );
+}
+
+/** 탐험 랜드마크를 추상 보석 대신 숲의 동물과 식물로 만든다. */
+export function buildLandmark(spec) {
+  switch (spec.type) {
+    case 'squirrel':
+      return buildSquirrel();
+    case 'butterfly':
+      return buildButterfly();
+    case 'forestBird':
+      return buildBird();
+    case 'wildflower':
+      return buildWildflower();
+    case 'sapling':
+      return buildSapling();
+    case 'mushroomFriend':
+      return buildMushroomFamily();
+    default:
+      return null;
+  }
 }
 
 export function buildDecoration(spec) {
@@ -256,12 +276,27 @@ export function buildDecoration(spec) {
 /** 연못 물결을 아주 느리게 움직인다 */
 export function update(dt, { elapsed, decorGroup, sceneryGroup }) {
   for (const obj of [...decorGroup.children, ...sceneryGroup.children]) {
-    if (obj.userData.kind !== 'pond') continue;
-    const ripple = obj.getObjectByName('pond-ripple');
-    if (!ripple) continue;
-    const wave = 1 + Math.sin(elapsed * 0.8) * 0.04;
-    ripple.scale.set(wave, 1, wave);
-    ripple.rotation.y = elapsed * 0.12;
+    const kind = obj.userData.kind;
+    if (kind === 'pond') {
+      const ripple = obj.getObjectByName('pond-ripple');
+      if (!ripple) continue;
+      const wave = 1 + Math.sin(elapsed * 0.8) * 0.04;
+      ripple.scale.set(wave, 1, wave);
+      ripple.rotation.y = elapsed * 0.12;
+    } else if (kind === 'squirrel') {
+      obj.rotation.y = Math.sin(elapsed * 1.8) * 0.32;
+      const tail = obj.getObjectByName('squirrel-tail');
+      if (tail) tail.rotation.z = -0.65 + Math.sin(elapsed * 4) * 0.18;
+    } else if (kind === 'butterfly') {
+      obj.position.y = obj.userData.anchor.y + 0.75 + Math.sin(elapsed * 2.4) * 0.2;
+      const wings = obj.getObjectByName('butterfly-wings');
+      if (wings) wings.scale.x = 0.35 + Math.abs(Math.sin(elapsed * 7)) * 0.65;
+    } else if (kind === 'forestBird') {
+      obj.position.y = obj.userData.anchor.y + 0.35 + Math.sin(elapsed * 3) * 0.08;
+      obj.rotation.y = Math.sin(elapsed * 1.1) * 0.5;
+    } else if (['wildflower', 'sapling', 'mushroomFriend'].includes(kind)) {
+      obj.rotation.z = Math.sin(elapsed * 1.5 + obj.position.x) * 0.05;
+    }
   }
 }
 
@@ -393,6 +428,103 @@ function buildMushroom() {
   return group(stem, cap, dot);
 }
 
+function buildSquirrel() {
+  const fur = flatMaterial('#B96F3F', { emissive: '#2A1007' });
+  const cream = flatMaterial('#F1D3A4');
+  const dark = flatMaterial('#33241B');
+  const body = blob(0.28, 0, fur, [0, 0.34, 0]);
+  body.scale.set(0.8, 1.25, 0.75);
+  const head = blob(0.2, 0, fur, [0, 0.68, 0.08]);
+  const ears = group(
+    cone(0.07, 0.18, 5, fur, [-0.1, 0.87, 0.06]),
+    cone(0.07, 0.18, 5, fur, [0.1, 0.87, 0.06])
+  );
+  const tail = cone(0.28, 0.85, 7, fur, [0, 0.52, -0.38]);
+  tail.name = 'squirrel-tail';
+  tail.rotation.z = -0.65;
+  const acorn = group(
+    blob(0.08, 0, cream, [0, 0.44, 0.27]),
+    cylinder(0.02, 0.02, 0.1, 5, dark, [0, 0.55, 0.27])
+  );
+  const animal = group(body, head, ears, tail, acorn);
+  animal.userData.kind = 'squirrel';
+  return animal;
+}
+
+function buildButterfly() {
+  const wingMat = flatMaterial('#FFD85E', { emissive: '#4A3708' });
+  const bodyMat = flatMaterial('#493826');
+  const wings = group();
+  wings.name = 'butterfly-wings';
+  for (const side of [-1, 1]) {
+    const wing = new THREE.Mesh(new THREE.CircleGeometry(0.2, 7), wingMat);
+    wing.material.side = THREE.DoubleSide;
+    wing.scale.set(0.8, 1.25, 1);
+    wing.position.x = side * 0.16;
+    wing.rotation.y = side * 0.45;
+    wings.add(wing);
+  }
+  const body = cylinder(0.025, 0.035, 0.34, 5, bodyMat, [0, 0, 0]);
+  body.rotation.x = Math.PI / 2;
+  const animal = group(wings, body);
+  animal.userData.kind = 'butterfly';
+  return animal;
+}
+
+function buildBird() {
+  const blue = flatMaterial('#4B9CC8', { emissive: '#0C2634' });
+  const belly = flatMaterial('#DDF2E9');
+  const beak = flatMaterial('#E8A64A');
+  const body = blob(0.24, 0, blue, [0, 0.24, 0]);
+  body.scale.set(1, 0.8, 1.25);
+  const chest = blob(0.13, 0, belly, [0, 0.22, 0.19]);
+  const head = blob(0.16, 0, blue, [0, 0.48, 0.12]);
+  const bill = cone(0.055, 0.2, 4, beak, [0, 0.46, 0.34]);
+  bill.rotation.x = Math.PI / 2;
+  const animal = group(body, chest, head, bill);
+  animal.userData.kind = 'forestBird';
+  return animal;
+}
+
+function buildWildflower() {
+  const stem = cylinder(0.025, 0.035, 0.55, 5, flatMaterial('#4C8757'), [0, 0.275, 0]);
+  const petals = group();
+  const petalMat = flatMaterial('#FFF7E4');
+  for (let i = 0; i < 6; i += 1) {
+    const a = (Math.PI * 2 * i) / 6;
+    const petal = blob(0.09, 0, petalMat, [Math.cos(a) * 0.12, 0.62, Math.sin(a) * 0.12]);
+    petal.scale.set(1.35, 0.45, 0.8);
+    petals.add(petal);
+  }
+  const plant = group(stem, petals, blob(0.06, 0, flatMaterial('#F2C94C'), [0, 0.62, 0]));
+  plant.userData.kind = 'wildflower';
+  return plant;
+}
+
+function buildSapling() {
+  const trunk = cylinder(0.04, 0.06, 0.85, 5, flatMaterial('#866447'), [0, 0.425, 0]);
+  const leaves = group(
+    blob(0.24, 0, flatMaterial('#77B95B'), [0, 0.9, 0]),
+    blob(0.16, 0, flatMaterial('#91CD68'), [0.2, 0.76, 0.04]),
+    blob(0.15, 0, flatMaterial('#91CD68'), [-0.18, 0.72, -0.02])
+  );
+  const plant = group(trunk, leaves);
+  plant.userData.kind = 'sapling';
+  return plant;
+}
+
+function buildMushroomFamily() {
+  const family = group();
+  for (const [x, scale] of [[-0.2, 0.75], [0, 1], [0.22, 0.6]]) {
+    const mushroom = buildMushroom();
+    mushroom.position.x = x;
+    mushroom.scale.setScalar(scale);
+    family.add(mushroom);
+  }
+  family.userData.kind = 'mushroomFriend';
+  return family;
+}
+
 function buildForestSun() {
   const disc = new THREE.Mesh(
     new THREE.CircleGeometry(1, 28),
@@ -420,5 +552,6 @@ export default {
   getCurvature,
   getHeightJitter,
   buildDecoration,
+  buildLandmark,
   update,
 };

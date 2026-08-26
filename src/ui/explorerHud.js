@@ -194,7 +194,7 @@ export function createExplorerHud({ stage, canvas, explorer, onExit }) {
   const touchDevice = window.matchMedia?.('(hover: none)').matches;
   tip.textContent = touchDevice
     ? '왼쪽 조이스틱으로 이동 · 화면을 밀어 시점 · 점프로 블록 위에 올라가 보세요'
-    : 'WASD 이동 · Space 점프 · Shift 달리기 · 마우스로 시점 · Esc 로 나가기';
+    : 'WASD 이동 · Space 연속 입력으로 높이 점프 · Shift 달리기 · Esc 로 나가기';
 
   return {
     element: root,

@@ -39,12 +39,8 @@ const BLACK = new THREE.Color(0x000000);
 /** 블록 사이 z-fighting 방지를 위한 최소 단차 */
 const GROUND_OFFSET = 0.02;
 
-/**
- * 스캔 카드가 놓이는 높이.
- * 씬의 어떤 블록보다 위에 있어 자연스럽게 가리고, 정사영에 가까운 탑다운
- * 카메라에서는 이 높이차로 인한 시차가 무시할 수준(0.1모듈 미만)이다.
- */
-const SCAN_CARD_Y = 9;
+/** 평탄화된 3D 블록 바로 위에서 자연스럽게 이어지는 스캔 카드 높이. */
+const SCAN_CARD_Y = 0.38;
 
 export class SceneEngine {
   /**
@@ -587,7 +583,9 @@ export class SceneEngine {
 
     for (const spec of specs) {
       const y = this.getHeightAt(spec.x, spec.z);
-      const beacon = buildBeacon(spec.color || this.palette.accent || '#FFD972');
+      const beacon =
+        this.theme.buildLandmark?.(spec) ||
+        buildBeacon(spec.color || this.palette.accent || '#FFD972');
       beacon.position.set(spec.x, y, spec.z);
       beacon.userData.anchor = { x: spec.x, y, z: spec.z };
       beacon.userData.baseQuaternion = beacon.quaternion.clone();
@@ -636,18 +634,17 @@ export class SceneEngine {
     if (!this.scanOverlay) return;
     const { meshes, materials, opacities } = this.scanOverlay;
     const o = state.scanOverlay;
-    // 반투명 카드가 아직 높이가 남은 3D 블록과 동시에 보이면 두 QR이
-    // 포개진 것처럼 보인다. 카메라·블록 전환이 끝난 뒤 완성 카드를 원자적으로
-    // 교체해 중간 프레임에서도 한 가지 QR만 보이게 한다.
-    const visible = o >= 0.999;
+    // 평탄화된 블록 바로 위에 같은 셀 색으로 겹쳐 페이드하므로 하나의 QR처럼 보인다.
+    const visible = o > 0.001;
 
     for (let i = 0; i < meshes.length; i += 1) {
       meshes[i].visible = visible;
       materials[i].opacity = visible ? opacities[i] : 0;
     }
 
-    if (this.darkMesh?.mesh) this.darkMesh.mesh.visible = !visible;
-    if (this.lightMesh?.mesh) this.lightMesh.mesh.visible = !visible;
+    const replaced = o >= 0.999;
+    if (this.darkMesh?.mesh) this.darkMesh.mesh.visible = !replaced;
+    if (this.lightMesh?.mesh) this.lightMesh.mesh.visible = !replaced;
   }
 
   _applyCamera(state) {

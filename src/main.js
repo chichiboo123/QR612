@@ -81,6 +81,15 @@ stage.innerHTML = `
 const canvasHost = stage.querySelector('.stage__canvas');
 const badge = stage.querySelector('.stage__badge');
 const hint = stage.querySelector('.stage__hint');
+const stageTravelButton = document.createElement('button');
+stageTravelButton.type = 'button';
+stageTravelButton.className = 'stage__travel';
+stageTravelButton.hidden = true;
+stageTravelButton.innerHTML = `
+  <span class="material-icons-outlined" aria-hidden="true">directions_walk</span>
+  QR 여행
+`;
+stage.appendChild(stageTravelButton);
 
 const notice = document.createElement('p');
 notice.className = 'notice';
@@ -156,6 +165,12 @@ travelButton.innerHTML = `
   QR 여행 — 1인칭으로 걸어 들어가기
 `;
 travelButton.addEventListener('click', () => {
+  if (!engine) return;
+  if (engine.isExploring) engine.exitExplorer();
+  else engine.enterExplorer();
+});
+stageTravelButton.addEventListener('click', (event) => {
+  event.stopPropagation();
   if (!engine) return;
   if (engine.isExploring) engine.exitExplorer();
   else engine.enterExplorer();
@@ -242,6 +257,7 @@ function generate(url, themeId) {
     hint.hidden = false;
     viewToggle.disabled = false;
     travelButton.disabled = false;
+    stageTravelButton.hidden = false;
     shareButton.setEnabled(true);
     downloadButton.setEnabled(true);
 
@@ -380,10 +396,6 @@ function createHeader() {
           <p class="app-header__eyebrow">YOUR LINK, A LITTLE PLANET</p>
           <h1 class="app-header__title">QR612</h1>
         </div>
-      </div>
-      <div class="app-header__intro">
-        <p class="app-header__subtitle">링크 하나로 만드는 나만의 작은 행성</p>
-        <p class="app-header__description">주소를 입력하고 테마를 고르면, 스캔할 수 있는 3D QR 장면이 완성됩니다.</p>
       </div>
       <span class="privacy-badge">
         <span class="material-icons-outlined" aria-hidden="true">verified_user</span>

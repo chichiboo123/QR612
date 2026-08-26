@@ -82,8 +82,8 @@ export const TRANSITION = {
    * 아래에 깔린 테마 블록도 같은 스캔 색상 · 같은 조명으로 수렴하므로
    * 교체되는 순간이 눈에 띄지 않는다.
    */
-  scanOverlayStart: 0.62,
-  scanOverlayEnd: 0.93,
+  scanOverlayStart: 0.88,
+  scanOverlayEnd: 1,
 
   /** 전환 소요 시간(초) */
   duration: 1.15,
