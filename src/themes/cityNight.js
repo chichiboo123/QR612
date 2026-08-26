@@ -97,8 +97,9 @@ export function getPlayerLight() {
  */
 export function getScanColors() {
   return {
-    dark: ['#1A237E', '#0D47A1', '#B8860B', '#00695C', '#4527A0', '#01579B'],
-    light: ['#F2F4FA', '#E9EDF7', '#F7F9FC', '#DFE6F2'],
+    // 건물 외벽의 청회색을 주조색으로, 창문 앰버는 드문 포인트로 쓴다.
+    dark: ['#4A5C8C', '#4A5C8C', '#3E507F', '#566996', '#4A5C8C', '#FFC46B'],
+    light: ['#2A3352', '#2A3352', '#303A5C', '#26304E'],
   };
 }
 
@@ -160,7 +161,10 @@ export function placeDecorations(matrixSize) {
       scale: 0.9 + rand() * 0.3,
       color: carColors[i % carColors.length],
       trackOffset: i / 10 + rand() * 0.03,
-      trackSpeed: (rand() > 0.5 ? 1 : -1) * (0.028 + rand() * 0.022),
+      // 안쪽 차선은 시계 방향, 바깥 차선은 반시계 방향으로만 달린다.
+      // 방향과 차선을 묶어 마주 오는 차가 같은 차선을 공유하지 않게 한다.
+      direction: i % 2 === 0 ? 1 : -1,
+      trackSpeed: (i % 2 === 0 ? 1 : -1) * (0.028 + rand() * 0.022),
       lane: i % 2 === 0 ? -0.9 : 0.9,
       persistent: true,
     });
@@ -283,15 +287,16 @@ function trackPoint(matrixSize, t, lane = 0) {
   const local = t * 4 - Math.floor(t * 4);
   const along = (local - 0.5) * 2 * half;
 
+  // 자동차 모델의 앞은 로컬 +X다. 반환 각도는 +X가 진행 벡터를 보도록 한다.
   switch (side) {
     case 0:
-      return { x: along, z: -half, angle: Math.PI / 2 };
+      return { x: along, z: -half, angle: 0 };
     case 1:
-      return { x: half, z: along, angle: Math.PI };
+      return { x: half, z: along, angle: -Math.PI / 2 };
     case 2:
-      return { x: -along, z: half, angle: -Math.PI / 2 };
+      return { x: -along, z: half, angle: Math.PI };
     default:
-      return { x: -half, z: -along, angle: 0 };
+      return { x: -half, z: -along, angle: Math.PI / 2 };
   }
 }
 
@@ -301,7 +306,7 @@ function trackPoint(matrixSize, t, lane = 0) {
 
 function buildRingRoad(matrixSize) {
   const half = trackHalf(matrixSize);
-  const width = 3.4;
+  const width = 4.2;
   const asphalt = flatMaterial('#2C3450', { emissive: '#0A0E1C' });
   const lineMat = glowMaterial('#E8EDF7', { opacity: 0.5, transparent: true });
 
@@ -316,7 +321,7 @@ function buildRingRoad(matrixSize) {
     g.add(box(sx, 0.08, sz, asphalt, [px, 0.04, pz]));
   }
 
-  // 중앙선 — 짧은 선분을 반복해 점선으로
+  // 두 차선을 가르는 중앙선 — 짧은 선분을 반복해 점선으로
   for (let i = 0; i < 4; i += 1) {
     for (let j = 0; j < 26; j += 1) {
       const t = (i + (j + 0.5) / 26) / 4;

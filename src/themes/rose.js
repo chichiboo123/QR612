@@ -26,13 +26,13 @@ export const meta = {
   id: 'rose',
   label: '장미',
   caption: '유리돔 속 정원',
-  swatch: ['#F2B3C5', '#3E7A5A', '#FFF0F4'],
+  swatch: ['#D92F3D', '#3E7A5A', '#FFF0F4'],
 };
 
 const PALETTE = {
   /* 3D 씬 */
-  dark: '#F2B3C5', // 꽃잎빛 타일
-  darkEmissive: '#4A1F2C',
+  dark: '#D92F3D', // 어린왕자의 장미를 떠올리는 선명한 진홍색 타일
+  darkEmissive: '#4A0D16',
   light: '#4E8F6C', // 잎사귀빛 타일
   ground: '#3E7A5A', // 밝힌 미드나잇그린 정원 바닥
   groundEmissive: '#0C1D14',
@@ -84,8 +84,8 @@ export function getPlayerLight() {
  */
 export function getScanColors() {
   return {
-    dark: ['#AD1457', '#6A1B9A', '#1B5E20', '#B71C1C', '#4A148C', '#2E7D32'],
-    light: ['#FDF1F4', '#F8E7EC', '#FEF6F8', '#F2DCE4'],
+    dark: ['#D92F3D', '#D92F3D', '#C51F32', '#E4424E', '#B9162A', '#D92F3D'],
+    light: ['#4E8F6C', '#4E8F6C', '#5A9B76', '#447F60'],
   };
 }
 
@@ -216,8 +216,8 @@ export function buildDecoration(spec) {
 function buildRose() {
   const stemMat = flatMaterial('#3F8A5A', { emissive: '#0C1D12' });
   const leafMat = flatMaterial('#5AA875');
-  const petalOuter = flatMaterial('#F7C2D2', { emissive: '#4A1F2C' });
-  const petalInner = flatMaterial('#E88AA6', { emissive: '#3A1420' });
+  const petalOuter = flatMaterial('#E53945', { emissive: '#4A0D16' });
+  const petalInner = flatMaterial('#B9152B', { emissive: '#35070F' });
 
   const stem = cylinder(0.055, 0.08, 2.6, 6, stemMat, [0, 1.3, 0]);
 
