@@ -464,6 +464,10 @@ body {
   transform: translateY(0) scale(0.985);
 }
 
+.theme-card:active {
+  transform: translateY(0) scale(0.985);
+}
+
 .theme-card:hover {
   border-color: var(--color-primary);
   transform: translateY(-1px);
