@@ -20,11 +20,16 @@ const MESSAGE_ICONS = {
 export function createUrlInput({ initialValue = '', onSubmit }) {
   const section = document.createElement('section');
   section.className = 'panel';
+  section.setAttribute('aria-labelledby', 'url-input-title');
   section.innerHTML = `
-    <h2 class="panel__title">
-      <span class="material-icons-outlined" aria-hidden="true">link</span>
-      QR로 만들 주소
-    </h2>
+    <div class="panel__heading">
+      <span class="step-badge" aria-hidden="true">1</span>
+      <h2 class="panel__title" id="url-input-title">
+        <span class="material-icons-outlined" aria-hidden="true">link</span>
+        QR로 만들 주소
+      </h2>
+    </div>
+    <p class="panel__description">공유할 웹페이지 주소를 붙여 넣어 주세요.</p>
     <form class="field" novalidate>
       <div class="field__row">
         <label class="sr-only" for="qr612-url">QR코드로 만들 URL</label>
@@ -35,6 +40,7 @@ export function createUrlInput({ initialValue = '', onSubmit }) {
           type="text"
           inputmode="url"
           autocomplete="url"
+          aria-describedby="url-input-message"
           spellcheck="false"
           placeholder="https://litt.ly/chichiboo"
         />
@@ -43,7 +49,7 @@ export function createUrlInput({ initialValue = '', onSubmit }) {
           생성하기
         </button>
       </div>
-      <p class="field__message" role="status" aria-live="polite"></p>
+      <p class="field__message" id="url-input-message" role="status" aria-live="polite"></p>
     </form>
   `;
 
