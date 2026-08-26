@@ -31,10 +31,10 @@ export const meta = {
 
 const PALETTE = {
   /* 3D 씬 */
-  dark: '#F2A583', // 사구 능선 — 밝은 선셋오렌지
+  dark: '#E8A35D', // 햇빛을 받은 황금빛 사구 능선
   darkEmissive: '#4A2010',
-  light: '#F6E6C8', // 볕 드는 모래 — 샌드베이지
-  ground: '#F0DCB8',
+  light: '#F4D7A1', // 볕 드는 모래 — 샌드베이지
+  ground: '#EBCB91',
   groundEmissive: '#2E2211',
   sky: '#FFD9B0',
   accent: '#FFB577',
@@ -52,6 +52,21 @@ export function getPalette() {
 
 export function getCurvature() {
   return 0.45; // 사막 지평선이 둥글게 휘는 정도
+}
+
+/**
+ * QR 바깥 지면에 완만하게 이어지는 사구 파동을 만든다.
+ * 그리드 안쪽은 탐험 충돌 높이와 맞아야 하므로 평평하게 두고 외곽만 변형한다.
+ */
+export function getGroundDisplacement(x, z, matrixSize) {
+  const distance = Math.max(Math.abs(x), Math.abs(z));
+  const edge = matrixSize / 2 + 1;
+  const blend = Math.min(Math.max((distance - edge) / 10, 0), 1);
+  if (blend === 0) return 0;
+
+  const longWave = Math.sin(x * 0.095 + z * 0.035 + 0.8) * 0.8;
+  const crossWave = Math.sin(z * 0.13 - x * 0.025 - 0.4) * 0.45;
+  return (longWave + crossWave) * blend;
 }
 
 /** 사구는 능선마다 높이가 달라야 사막처럼 보인다 */
@@ -72,14 +87,14 @@ export function getBlockSpread() {
 export function getBlockGeometry(isDark) {
   if (isDark) {
     return {
-      // 정사각 밑면 — 탑다운에서 모듈이 정확히 맞물리도록
-      geometry: new THREE.BoxGeometry(1, 1, 1),
+      // 위로 갈수록 좁아지는 사면으로 블록이 아니라 사구 능선처럼 보이게 한다.
+      geometry: createDuneBlockGeometry(0.72),
       material: flatMaterial(PALETTE.dark, { emissive: PALETTE.darkEmissive }),
       height: 3.6,
     };
   }
   return {
-    geometry: new THREE.BoxGeometry(1, 1, 1),
+    geometry: createDuneBlockGeometry(0.88),
     material: flatMaterial(PALETTE.light),
     height: 0.52,
   };
@@ -99,8 +114,8 @@ export function getPlayerLight() {
  */
 export function getScanColors() {
   return {
-    dark: ['#BF360C', '#E65100', '#8D4E00', '#A0522D', '#B03A2E', '#8B4513'],
-    light: ['#FEF6E7', '#F8EBD6', '#FCF2E2', '#F2E2C8'],
+    dark: ['#E8A35D', '#E8A35D', '#D78B46', '#F0B66F', '#D99652', '#C8793D'],
+    light: ['#F4D7A1', '#F4D7A1', '#F7E0B7', '#EDC887'],
   };
 }
 
@@ -125,6 +140,18 @@ export function getBackgroundSetup() {
 export function placeDecorations(matrixSize) {
   const rand = makeRandom(matrixSize * 131 + 29);
   const specs = [];
+
+  // QR 지형 바깥에도 길고 낮은 사구를 겹쳐 사막의 수평 능선을 만든다.
+  for (let i = 0; i < 14; i += 1) {
+    const angle = (360 / 14) * i + rand() * 16;
+    const [dx, dz] = squareRingPoint(matrixSize, angle, 7 + rand() * 12);
+    specs.push({
+      type: 'sandDune',
+      position: [dx, -0.15, dz],
+      rotation: [0, rand() * Math.PI, 0],
+      scale: 1.2 + rand() * 1.1,
+    });
+  }
 
   // 여우 — 그리드 남동쪽 사구 위
   const [fx, fz] = ringPoint(matrixSize, 152, 5);
@@ -229,9 +256,45 @@ export function buildDecoration(spec) {
       return buildSunset();
     case 'bush':
       return buildBush();
+    case 'sandDune':
+      return buildSandDune();
     default:
       return null;
   }
+}
+
+/** 정사각 밑면을 유지하면서 윗면만 좁힌 낮은 사구 타일. */
+function createDuneBlockGeometry(topScale) {
+  const geometry = new THREE.BoxGeometry(1, 1, 1);
+  const positions = geometry.attributes.position;
+  for (let i = 0; i < positions.count; i += 1) {
+    if (positions.getY(i) > 0) {
+      positions.setX(i, positions.getX(i) * topScale);
+      positions.setZ(i, positions.getZ(i) * topScale);
+    }
+  }
+  positions.needsUpdate = true;
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+/** 지평선에 겹쳐지는 길고 낮은 반구형 모래 능선. */
+function buildSandDune() {
+  const geometry = new THREE.SphereGeometry(
+    1,
+    24,
+    10,
+    0,
+    Math.PI * 2,
+    0,
+    Math.PI / 2
+  );
+  const mesh = new THREE.Mesh(
+    geometry,
+    flatMaterial('#E6B66F', { emissive: '#3B2510' })
+  );
+  mesh.scale.set(4.8, 1.15, 2.2);
+  return group(mesh);
 }
 
 /* ------------------------------------------------------------------ */
@@ -368,6 +431,7 @@ export default {
   getBackgroundSetup,
   getPlayerLight,
   getCurvature,
+  getGroundDisplacement,
   getHeightJitter,
   getColorVariation,
   getBlockSpread,

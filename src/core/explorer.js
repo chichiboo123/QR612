@@ -66,6 +66,7 @@ export class Explorer {
     this.running = false;
     this._keys = new Set();
     this._wantJump = false;
+    this._jumpCount = 0;
 
     this._prevCamera = null;
     this._bindKeyboard();
@@ -140,6 +141,7 @@ export class Explorer {
     this.position.y = this.engine.getHeightAt(this.position.x, this.position.z);
     this.velocityY = 0;
     this.onGround = true;
+    this._jumpCount = 0;
     this.yaw = 0; // yaw 0 = -Z 방향, 즉 그리드 중심을 본다
     this.pitch = -0.06;
   }
@@ -192,7 +194,7 @@ export class Explorer {
       }
       if (e.code === 'Space') {
         e.preventDefault();
-        this._wantJump = true;
+        if (!e.repeat) this._wantJump = true;
       }
       this._keys.add(e.code);
       if (MOVE_KEYS.has(e.code)) e.preventDefault();
@@ -261,6 +263,11 @@ export class Explorer {
     if (this._wantJump && this.onGround) {
       this.velocityY = PLAYER.jumpSpeed;
       this.onGround = false;
+      this._jumpCount = 1;
+    } else if (this._wantJump && this._jumpCount > 0 && this._jumpCount < 3) {
+      // 공중에서 두세 번째 입력을 이어 누르면 추진력을 더한다.
+      this.velocityY = Math.min(Math.max(this.velocityY, 0) + 1.8, 10);
+      this._jumpCount += 1;
     }
     this._wantJump = false;
 
@@ -272,6 +279,7 @@ export class Explorer {
       this.position.y = ground;
       this.velocityY = 0;
       this.onGround = true;
+      this._jumpCount = 0;
     } else {
       this.onGround = false;
     }

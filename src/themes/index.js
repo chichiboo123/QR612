@@ -11,6 +11,7 @@
  * 선택 확장
  *   getCurvature()           → 구면 배치 강도(0 = 평면)
  *   getHeightJitter()        → 셀별 높이 흔들기 정도(사구·스카이라인)
+ *   getGroundDisplacement()  → 장면 바닥의 절차적 높이 변형(사구 등)
  *   buildDecoration(spec)    → THREE.Object3D (placeDecorations 스펙을 실제 오브젝트로)
  *   placeLandmarks(size, m)  → 1인칭 탐험 중 발견하는 지점 배열
  *   update(dt, ctx)          → 프레임마다 호출 (예: 도시의 자동차, 연못 물결)

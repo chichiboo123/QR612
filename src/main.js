@@ -44,10 +44,17 @@ if (shared.themeId && THEMES.some((t) => t.id === shared.themeId)) {
 
 const app = document.getElementById('app');
 
+const skipLink = document.createElement('a');
+skipLink.className = 'skip-link';
+skipLink.href = '#main-content';
+skipLink.textContent = 'QR 만들기로 바로가기';
+app.appendChild(skipLink);
 app.appendChild(createHeader());
 
 const main = document.createElement('main');
 main.className = 'app-main';
+main.id = 'main-content';
+main.tabIndex = -1;
 
 // 모바일에서는 "주소 입력 → 3D 씬 → 테마 → 공유" 순으로 흐르고,
 // 1024px 이상에서는 좌측 컨트롤 / 우측 스테이지 2단 그리드가 된다.
@@ -74,11 +81,34 @@ stage.innerHTML = `
 const canvasHost = stage.querySelector('.stage__canvas');
 const badge = stage.querySelector('.stage__badge');
 const hint = stage.querySelector('.stage__hint');
+const stageTravelButton = document.createElement('button');
+stageTravelButton.type = 'button';
+stageTravelButton.className = 'stage__travel';
+stageTravelButton.hidden = true;
+stageTravelButton.innerHTML = `
+  <span class="material-icons-outlined" aria-hidden="true">directions_walk</span>
+  QR 여행
+`;
+stage.appendChild(stageTravelButton);
 
 const notice = document.createElement('p');
 notice.className = 'notice';
+notice.id = 'stage-instructions';
 
-stageColumn.append(stage, notice);
+const stageMeta = document.createElement('div');
+stageMeta.className = 'stage-meta';
+stageMeta.setAttribute('aria-live', 'polite');
+stageMeta.innerHTML = `
+  <span class="stage-meta__state">
+    <span class="stage-meta__dot" aria-hidden="true"></span>
+    미리보기 준비 중
+  </span>
+  <span class="stage-meta__url"></span>
+`;
+const stageMetaState = stageMeta.querySelector('.stage-meta__state');
+const stageMetaUrl = stageMeta.querySelector('.stage-meta__url');
+
+stageColumn.append(stage, stageMeta, notice);
 
 /* 컨트롤 ------------------------------------------------------------ */
 
@@ -104,11 +134,16 @@ const themePicker = createThemePicker({
 
 const actions = document.createElement('section');
 actions.className = 'panel';
+actions.setAttribute('aria-labelledby', 'actions-title');
 actions.innerHTML = `
-  <h2 class="panel__title">
-    <span class="material-icons-outlined" aria-hidden="true">share</span>
-    보기 &amp; 공유
-  </h2>
+  <div class="panel__heading">
+    <span class="step-badge" aria-hidden="true">3</span>
+    <h2 class="panel__title" id="actions-title">
+      <span class="material-icons-outlined" aria-hidden="true">share</span>
+      보기 &amp; 공유
+    </h2>
+  </div>
+  <p class="panel__description">완성된 QR을 확인하고 링크나 이미지로 나눠 보세요.</p>
   <div class="btn-group"></div>
   <p class="field__message" role="status" aria-live="polite"></p>
 `;
@@ -134,6 +169,12 @@ travelButton.addEventListener('click', () => {
   if (engine.isExploring) engine.exitExplorer();
   else engine.enterExplorer();
 });
+stageTravelButton.addEventListener('click', (event) => {
+  event.stopPropagation();
+  if (!engine) return;
+  if (engine.isExploring) engine.exitExplorer();
+  else engine.enterExplorer();
+});
 
 const shareButton = createShareButton({
   getState: () => (state.url ? { url: state.url, themeId: state.themeId } : null),
@@ -154,7 +195,9 @@ urlInput.element.classList.add('panel--url');
 themePicker.element.classList.add('panel--theme');
 actions.classList.add('panel--actions');
 
-main.append(urlInput.element, stageColumn, themePicker.element, actions);
+// 모바일에서는 설정을 모두 마친 뒤 결과를 보도록 입력 → 테마 → 스테이지 순서로 둔다.
+// 데스크톱은 grid-area가 시각 배치를 독립적으로 제어한다.
+main.append(urlInput.element, themePicker.element, stageColumn, actions);
 
 /* ------------------------------------------------------------------ */
 /* 엔진                                                                */
@@ -168,6 +211,7 @@ try {
     onViewChange: updateViewLabels,
     onExplorerEvent: handleExplorerEvent,
   });
+  engine.renderer.domElement.setAttribute('aria-describedby', 'stage-instructions');
   engine.start();
 
   explorerHud = createExplorerHud({
@@ -213,12 +257,19 @@ function generate(url, themeId) {
     hint.hidden = false;
     viewToggle.disabled = false;
     travelButton.disabled = false;
+    stageTravelButton.hidden = false;
     shareButton.setEnabled(true);
     downloadButton.setEnabled(true);
 
     updateViewLabels(0);
 
     const summary = `QR 버전 ${qr.version} · ${qr.size}×${qr.size} 모듈 · 에러 정정 ${qr.errorCorrectionLevel}`;
+    stageMetaState.innerHTML = `
+      <span class="stage-meta__dot" aria-hidden="true"></span>
+      QR 생성 완료
+    `;
+    stageMetaUrl.textContent = url;
+    stageMetaUrl.title = url;
     if (qr.version >= 12) {
       // 모듈이 촘촘해질수록 작은 화면에서 스캔이 어려워진다
       urlInput.setMessage(
@@ -339,9 +390,17 @@ function createHeader() {
   header.className = 'app-header';
   header.innerHTML = `
     <div class="app-header__inner">
-      <span class="app-header__mark"><span class="material-icons-outlined" aria-hidden="true">rocket_launch</span></span>
-      <h1 class="app-header__title">QR612</h1>
-      <p class="app-header__subtitle">어린왕자의 장면이 되는 QR코드 — 탭하면 스캔 가능한 QR로 바뀝니다.</p>
+      <div class="app-header__brand">
+        <span class="app-header__mark"><span class="material-icons-outlined" aria-hidden="true">rocket_launch</span></span>
+        <div>
+          <p class="app-header__eyebrow">YOUR LINK, A LITTLE PLANET</p>
+          <h1 class="app-header__title">QR612</h1>
+        </div>
+      </div>
+      <span class="privacy-badge">
+        <span class="material-icons-outlined" aria-hidden="true">verified_user</span>
+        브라우저에서만 처리
+      </span>
     </div>
   `;
   return header;

@@ -39,12 +39,8 @@ const BLACK = new THREE.Color(0x000000);
 /** 블록 사이 z-fighting 방지를 위한 최소 단차 */
 const GROUND_OFFSET = 0.02;
 
-/**
- * 스캔 카드가 놓이는 높이.
- * 씬의 어떤 블록보다 위에 있어 자연스럽게 가리고, 정사영에 가까운 탑다운
- * 카메라에서는 이 높이차로 인한 시차가 무시할 수준(0.1모듈 미만)이다.
- */
-const SCAN_CARD_Y = 9;
+/** 평탄화된 3D 블록 바로 위에서 자연스럽게 이어지는 스캔 카드 높이. */
+const SCAN_CARD_Y = 0.38;
 
 export class SceneEngine {
   /**
@@ -457,25 +453,28 @@ export class SceneEngine {
     base.frustumCulled = false;
     base.visible = false;
 
-    // 3. 모듈 타일 — 재질은 흰색, 실제 색은 셀마다 instanceColor 로
+    // 3. 모듈 타일 — dark와 light 모두 3D 블록에서 이어진 셀별 색으로 칠한다.
+    // 이전에는 dark만 타일이고 light는 단색 판이라 3D 장면과 결과의 괴리가 컸다.
+    // 두 팔레트 모두 동일 밝기로 정규화되므로 light 타일을 추가해도 판독성은 유지된다.
+    const scanCells = [...this.darkCells, ...this.lightCells];
     const moduleMat = makeMaterial('#ffffff');
     const modules = new THREE.InstancedMesh(
       // 1.004 — 부동소수 오차로 모듈 사이에 실틈이 생기지 않도록 아주 살짝 겹친다
       new THREE.BoxGeometry(1.004, 0.34, 1.004),
       moduleMat,
-      Math.max(this.darkCells.length, 1)
+      Math.max(scanCells.length, 1)
     );
-    modules.count = this.darkCells.length;
+    modules.count = scanCells.length;
     modules.frustumCulled = false;
     modules.visible = false;
     modules.instanceColor = new THREE.InstancedBufferAttribute(
-      new Float32Array(Math.max(this.darkCells.length, 1) * 3),
+      new Float32Array(Math.max(scanCells.length, 1) * 3),
       3
     );
 
     const dummy = this._dummy;
-    for (let i = 0; i < this.darkCells.length; i += 1) {
-      const cell = this.darkCells[i];
+    for (let i = 0; i < scanCells.length; i += 1) {
+      const cell = scanCells[i];
       dummy.position.set(cell.x, y + 0.22, cell.z);
       dummy.quaternion.identity();
       dummy.scale.set(1, 1, 1);
@@ -584,7 +583,9 @@ export class SceneEngine {
 
     for (const spec of specs) {
       const y = this.getHeightAt(spec.x, spec.z);
-      const beacon = buildBeacon(spec.color || this.palette.accent || '#FFD972');
+      const beacon =
+        this.theme.buildLandmark?.(spec) ||
+        buildBeacon(spec.color || this.palette.accent || '#FFD972');
       beacon.position.set(spec.x, y, spec.z);
       beacon.userData.anchor = { x: spec.x, y, z: spec.z };
       beacon.userData.baseQuaternion = beacon.quaternion.clone();
@@ -633,12 +634,17 @@ export class SceneEngine {
     if (!this.scanOverlay) return;
     const { meshes, materials, opacities } = this.scanOverlay;
     const o = state.scanOverlay;
+    // 평탄화된 블록 바로 위에 같은 셀 색으로 겹쳐 페이드하므로 하나의 QR처럼 보인다.
     const visible = o > 0.001;
 
     for (let i = 0; i < meshes.length; i += 1) {
       meshes[i].visible = visible;
       materials[i].opacity = opacities[i] * o;
     }
+
+    const replaced = o >= 0.999;
+    if (this.darkMesh?.mesh) this.darkMesh.mesh.visible = !replaced;
+    if (this.lightMesh?.mesh) this.lightMesh.mesh.visible = !replaced;
   }
 
   _applyCamera(state) {
@@ -741,7 +747,17 @@ export class SceneEngine {
       for (let i = 0; i < pos.count; i += 1) {
         const x = base[i * 3];
         const z = base[i * 3 + 2];
-        const y = -((x * x + z * z) / (2 * R)) * state.bend;
+        const themeShape = this.theme?.getGroundDisplacement?.(
+          x,
+          z,
+          this.qr?.size ?? 25
+        ) ?? 0;
+        const shapeWeight = this.curvature
+          ? state.bend / this.curvature
+          : 1 - state.flat;
+        const y =
+          -((x * x + z * z) / (2 * R)) * state.bend +
+          themeShape * shapeWeight;
         pos.setY(i, y);
       }
       pos.needsUpdate = true;
@@ -1032,6 +1048,9 @@ export class SceneEngine {
     let startY = 0;
     let moved = false;
     let pointerId = null;
+    const dragThreshold = window.matchMedia?.('(pointer: coarse)').matches
+      ? 14
+      : 8;
 
     const onDown = (e) => {
       pointerId = e.pointerId;
@@ -1047,7 +1066,7 @@ export class SceneEngine {
       if (this.explorer?.active) return; // 시점 조작은 탐험 컨트롤러가 맡는다
       const dx = e.clientX - startX;
       const dy = e.clientY - startY;
-      if (!moved && Math.hypot(dx, dy) < 8) return;
+      if (!moved && Math.hypot(dx, dy) < dragThreshold) return;
 
       moved = true;
       this._dragging = true;
