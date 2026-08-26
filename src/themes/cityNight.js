@@ -72,7 +72,7 @@ export function getBlockGeometry(isDark) {
   if (isDark) {
     return {
       geometry: new THREE.BoxGeometry(1, 1, 1),
-      material: flatMaterial(PALETTE.dark, { emissive: PALETTE.darkEmissive }),
+      material: createBuildingMaterial(),
       height: 3.4,
     };
   }
@@ -155,16 +155,20 @@ export function placeDecorations(matrixSize) {
   // 자동차 — update() 에서 트랙을 따라 움직인다
   const carColors = ['#FF8A65', '#7FE3E0', '#FFD972', '#F49FC4', '#A6E38F'];
   for (let i = 0; i < 10; i += 1) {
+    const direction = i % 2 === 0 ? 1 : -1;
     specs.push({
       type: 'car',
       position: [0, 0.12, 0],
       scale: 0.9 + rand() * 0.3,
       color: carColors[i % carColors.length],
-      trackOffset: i / 10 + rand() * 0.03,
+      // Five evenly spaced cars per lane.  Cars in one lane deliberately use
+      // one convoy speed: varying it let a rear car catch and pass through the
+      // car ahead because these decorative meshes have no physics collider.
+      trackOffset: i / 10,
       // 안쪽 차선은 시계 방향, 바깥 차선은 반시계 방향으로만 달린다.
       // 방향과 차선을 묶어 마주 오는 차가 같은 차선을 공유하지 않게 한다.
-      direction: i % 2 === 0 ? 1 : -1,
-      trackSpeed: (i % 2 === 0 ? 1 : -1) * (0.028 + rand() * 0.022),
+      direction,
+      trackSpeed: direction * 0.036,
       lane: i % 2 === 0 ? -0.9 : 0.9,
       persistent: true,
     });
@@ -184,6 +188,54 @@ export function placeDecorations(matrixSize) {
   }
 
   return specs;
+}
+
+/**
+ * Building facade material with deterministic lit windows.
+ *
+ * The window grid is evaluated in each box's local coordinates, so it also
+ * works on the instanced, differently scaled skyline without adding thousands
+ * of individual window meshes. Roofs remain plain and the warm emissive light
+ * is independent of the night lighting.
+ */
+function createBuildingMaterial() {
+  const material = flatMaterial(PALETTE.dark, {
+    emissive: PALETTE.darkEmissive,
+  });
+
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.windowColor = { value: new THREE.Color('#FFD67A') };
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        '#include <common>',
+        '#include <common>\nvarying vec3 vBuildingPosition;\nvarying vec3 vBuildingNormal;'
+      )
+      .replace(
+        '#include <begin_vertex>',
+        '#include <begin_vertex>\nvBuildingPosition = position;\nvBuildingNormal = normal;'
+      );
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        '#include <common>\nuniform vec3 windowColor;\nvarying vec3 vBuildingPosition;\nvarying vec3 vBuildingNormal;'
+      )
+      .replace(
+        '#include <emissivemap_fragment>',
+        `#include <emissivemap_fragment>
+         float facade = step(abs(vBuildingNormal.y), 0.2);
+         vec2 facadeUv = abs(vBuildingNormal.x) > 0.5
+           ? vec2(vBuildingPosition.z, vBuildingPosition.y)
+           : vec2(vBuildingPosition.x, vBuildingPosition.y);
+         vec2 windowCell = fract((facadeUv + 0.5) * vec2(4.0, 7.0));
+         float frame = step(0.20, windowCell.x) * step(windowCell.x, 0.80)
+           * step(0.20, windowCell.y) * step(windowCell.y, 0.74);
+         vec2 windowId = floor((facadeUv + 0.5) * vec2(4.0, 7.0));
+         float lit = step(0.34, fract(sin(dot(windowId, vec2(12.9898, 78.233))) * 43758.5453));
+         totalEmissiveRadiance += windowColor * facade * frame * lit * 1.45;`
+      );
+  };
+  material.customProgramCacheKey = () => 'qr612-city-lit-windows-v1';
+  return material;
 }
 
 /**
