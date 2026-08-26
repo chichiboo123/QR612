@@ -7,6 +7,9 @@
  *   - 매트릭스 → 블록 인스턴스 매핑 (dark = 높은 블록 / light = 낮은 블록)
  *   - 카메라·조명·바닥·배경 구성
  *   - progress(0~1) 로 3D ↔ 2D 를 보간 (core/transition.js 사용)
+ *   - "그림자 리빌" 연출: 테마의 평행광을 실제로 움직이고, 그 태양 기하로
+ *     계산한 투영 그림자를 그린다. 해가 천정에 서면 그림자 길이가 0 이 되어
+ *     각 모듈의 발자국으로 수렴한다 (core/transition.js 의 shadowLength)
  *   - 탑다운 뷰에서의 스캔 가능성 보장
  *       · 블록 XZ 스케일을 정확히 1.0 으로 닫아 모듈 사이 틈 제거
  *       · emissive 로 순수 스캔 색상 출력(조명·안개 영향 제거)
@@ -22,6 +25,7 @@ import * as THREE from 'three';
 import {
   TransitionController,
   computeTransitionState,
+  shadowLength,
   clamp,
   DEG,
 } from './transition.js';
@@ -42,6 +46,12 @@ const GROUND_OFFSET = 0.02;
 
 /** 평탄화된 3D 블록 바로 위에서 자연스럽게 이어지는 스캔 카드 높이. */
 const SCAN_CARD_Y = 0.38;
+
+/**
+ * 그림자를 받는 면(= light 블록 윗면) 위로 띄우는 높이.
+ * 지터로 조금 솟은 light 블록에도 그림자가 파묻히지 않을 만큼만 띄운다.
+ */
+const SHADOW_LIFT = 0.04;
 
 export class SceneEngine {
   /**
@@ -81,6 +91,7 @@ export class SceneEngine {
 
     /** 씬 그룹 */
     this.blockGroup = new THREE.Group();
+    this.shadowGroup = new THREE.Group(); // 해가 움직이며 길이가 변하는 그림자
     this.decorGroup = new THREE.Group(); // 전환 중 사라지는 큰 장식
     this.sceneryGroup = new THREE.Group(); // 스캔 뷰에서도 남는 낮은 풍경 요소
     this.celestialGroup = new THREE.Group();
@@ -88,6 +99,7 @@ export class SceneEngine {
     this.scanLightGroup = new THREE.Group();
     this.scene.add(
       this.blockGroup,
+      this.shadowGroup,
       this.decorGroup,
       this.sceneryGroup,
       this.celestialGroup,
@@ -186,9 +198,12 @@ export class SceneEngine {
     this._buildBackground();
     this._buildBlocks(matrix, size);
     this._buildGround(size);
+    this._buildShadows(size);
     this._buildHeightmap(size);
     this._buildDecorations(size);
     this._buildLandmarks(size);
+    // 장식이 다 놓인 뒤라야 각 오브젝트의 실제 크기로 그림자를 만들 수 있다
+    this._buildDecorShadows(size);
     this._buildScanOverlay(size);
 
     this._needsInstanceUpdate = true;
@@ -220,11 +235,30 @@ export class SceneEngine {
     }
 
     this.lights = [];
+    // 테마가 놓은 평행광이 이 장면의 해(또는 달)다.
+    // 그림자의 방향·길이가 여기서 나오고, 전환 중에는 엔진이 이 광원을 실제로
+    // 움직이므로 블록의 음영과 바닥의 그림자가 늘 같은 방향을 가리킨다.
+    this.sunLight = null;
+    this.sunAngles = { elevation: 34, azimuth: -40, distance: 60 };
+
     for (const spec of setup.lights || []) {
       const light = createLight(spec);
       if (!light) continue;
       this.lightGroup.add(light);
       this.lights.push({ light, baseIntensity: light.intensity, spec });
+
+      if (
+        light.isDirectionalLight &&
+        (!this.sunLight || light.intensity > this.sunLight.intensity)
+      ) {
+        const [x, y, z] = spec.position || [10, 20, 10];
+        this.sunLight = light;
+        this.sunAngles = {
+          elevation: Math.atan2(y, Math.hypot(x, z) || 1e-4) / DEG,
+          azimuth: Math.atan2(x, z) / DEG,
+          distance: Math.hypot(x, y, z) || 60,
+        };
+      }
     }
 
     for (const spec of setup.objects || []) {
@@ -286,6 +320,10 @@ export class SceneEngine {
     this.darkCells = darkCells;
     this.lightCells = lightCells;
     this.matrix = matrix;
+
+    // 그림자를 받는 면의 높이를 정할 때 쓴다.
+    // 지터로 가장 높이 솟은 light 블록보다도 위에 깔아야 그림자에 구멍이 안 난다.
+    this.maxLightScale = lightCells.reduce((m, c) => Math.max(m, c.scale ?? 1), 1);
 
     this.darkMesh = this._createInstancedMesh(true, darkCells.length);
     this.lightMesh = this._createInstancedMesh(false, lightCells.length);
@@ -368,6 +406,104 @@ export class SceneEngine {
       basePositions: Float32Array.from(geometry.attributes.position.array),
     };
     this._groundBend = -1;
+  }
+
+  /* --------------------------------------------------------------- */
+  /* 그림자 (전환의 주인공)                                             */
+  /* --------------------------------------------------------------- */
+
+  /**
+   * 블록이 드리우는 그림자 레이어.
+   *
+   * 실제 그림자맵 대신 평행광의 기하를 그대로 계산한 투영 사각형을 쓴다.
+   * 그림자 길이는 h / tan(태양고도) 이므로 해가 천정에 서면 길이가 0 이 되고
+   * 그림자는 정확히 모듈 하나의 발자국으로 수렴한다. 이 성질이 "그림자가
+   * 모여 QR 이 된다" 는 연출을 물리적으로 성립시킨다.
+   *
+   * 그림자를 받는 면은 바닥이 아니라 **light 블록의 윗면**이다.
+   * 그리드는 dark/light 블록으로 빈틈없이 덮여 있어 바닥은 보이지 않는다.
+   * 낮은 light 블록의 윗면이 곧 이 풍경의 지면이고, 높은 dark 블록이 그 위로
+   * 솟아 그림자를 드리운다 — 그 그림자 무늬가 그대로 QR 이다.
+   */
+  _buildShadows(size) {
+    const geometry = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+    const material = makeShadowMaterial(
+      createRakingShadowTexture(),
+      this.palette.scanShadow || '#000000'
+    );
+    material.userData.uniforms.uRadius.value = this.sphereRadius;
+
+    const count = Math.max(this.darkCells.length, 1);
+    const mesh = new THREE.InstancedMesh(geometry, material, count);
+    mesh.count = this.darkCells.length;
+    mesh.frustumCulled = false;
+    mesh.visible = false;
+    mesh.renderOrder = 1;
+    mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+
+    this.shadowGroup.add(mesh);
+    this._trackDisposable(mesh);
+
+    this.blockShadows = { mesh, material, halfSpan: size / 2 };
+  }
+
+  /**
+   * 장식(나무·화산·바위 등)이 드리우는 그림자.
+   *
+   * 블록 그림자와 같은 태양 기하를 쓰되, 실루엣이 사각형이 아니므로 부드러운
+   * 방사형 텍스처를 길이 방향으로 늘여 쓴다. 해가 낮은 도입부에 나무 그림자가
+   * 풍경을 길게 가로지르는 장면이 이 연출의 첫 장면이다.
+   */
+  _buildDecorShadows(size) {
+    const casters = [];
+    const box = new THREE.Box3();
+    const half = size / 2;
+
+    for (const group of [this.decorGroup, this.sceneryGroup]) {
+      for (const obj of group.children) {
+        if (obj.userData.kind === 'beacon') continue; // 빛기둥은 그림자가 없다
+
+        const anchor = obj.userData.anchor;
+        if (!anchor) continue;
+
+        // 그리드 안에 선 장식(블록 위의 풀포기 등)은 그림자를 만들지 않는다.
+        // 어차피 길이가 0 으로 잘리고, QR 판 위에 얼룩만 남길 뿐이다.
+        if (Math.abs(anchor.x) < half && Math.abs(anchor.z) < half) continue;
+
+        box.setFromObject(obj);
+        if (box.isEmpty()) continue;
+
+        const radius =
+          Math.max(box.max.x - box.min.x, box.max.z - box.min.z) * 0.5;
+        const height = box.max.y - anchor.y;
+        if (height < 0.25 || radius < 0.08) continue;
+
+        casters.push({ x: anchor.x, y: anchor.y, z: anchor.z, radius, height });
+      }
+    }
+
+    if (!casters.length) {
+      this.decorShadows = null;
+      return;
+    }
+
+    const geometry = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+    const material = makeShadowMaterial(
+      createBlobShadowTexture(),
+      this.palette.scanShadow || '#000000'
+    );
+    material.userData.uniforms.uRadius.value = this.sphereRadius;
+
+    const mesh = new THREE.InstancedMesh(geometry, material, casters.length);
+    mesh.frustumCulled = false;
+    mesh.visible = false;
+    mesh.renderOrder = 1;
+    mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+
+    this.shadowGroup.add(mesh);
+    this._trackDisposable(mesh);
+
+    this.decorShadows = { mesh, material, casters, halfSpan: size / 2 };
   }
 
   /* --------------------------------------------------------------- */
@@ -657,16 +793,123 @@ export class SceneEngine {
       darkHeight3d: this.darkMesh?.height3d,
       lightHeight3d: this.lightMesh?.height3d,
       blockSpread: this.theme?.getBlockSpread?.(),
+      sunElevation3d: this.sunAngles?.elevation,
+      sunAzimuth3d: this.sunAngles?.azimuth,
     });
   }
 
   _applyState(state) {
     this._applyCamera(state);
+    this._applySun(state);
     this._applyInstances(state);
     this._applyGround(state);
+    this._applyShadows(state);
     this._applyMaterials(state);
     this._applyDecorFade(state);
     this._applyScanOverlay(state);
+  }
+
+  /** 테마의 평행광을 현재 태양 각도로 옮긴다. (타깃은 원점) */
+  _applySun(state) {
+    if (!this.sunLight) return;
+
+    const el = state.sunElevation * DEG;
+    const az = state.sunAzimuth * DEG;
+    const r = this.sunAngles.distance;
+
+    this.sunLight.position.set(
+      r * Math.cos(el) * Math.sin(az),
+      r * Math.sin(el),
+      r * Math.cos(el) * Math.cos(az)
+    );
+  }
+
+  /**
+   * 현재 태양 각도로 그림자 인스턴스를 다시 그린다.
+   *
+   * 그림자가 그리드 밖으로 나가면 한 단 낮은 바닥 위를 떠다니게 되므로
+   * 그리드 경계에서 잘라낸다. 절벽 끝에서 그림자가 떨어져 나가는 것과 같아
+   * 물리적으로도 어색하지 않고, 무엇보다 quiet zone 을 절대 침범하지 않는다.
+   */
+  _applyShadows(state) {
+    const strength = state.shadowStrength;
+    const az = state.sunAzimuth * DEG;
+
+    // 그림자는 해의 반대쪽으로 뻗는다
+    const dirX = -Math.sin(az);
+    const dirZ = -Math.cos(az);
+    // 인스턴스의 로컬 +Z 축을 그림자 방향에 맞추는 Y 회전
+    const yaw = Math.atan2(dirX, dirZ);
+    const dummy = this._dummy;
+
+    if (this.blockShadows) {
+      const { mesh, material, halfSpan } = this.blockShadows;
+      const visible = strength > 0.004;
+
+      mesh.visible = visible;
+      material.opacity = strength;
+      material.userData.uniforms.uBend.value = state.bend;
+
+      if (visible) {
+        // 그림자를 받는 면 = light 블록의 윗면
+        const catcher = state.lightHeight * this.maxLightScale + SHADOW_LIFT;
+        const width = state.blockScaleXZ;
+
+        for (let i = 0; i < this.darkCells.length; i += 1) {
+          const cell = this.darkCells[i];
+          const rise = state.darkHeight * (cell.scale ?? 1) - catcher;
+          const len = Math.min(
+            shadowLength(rise, state.sunElevation),
+            exitDistance(cell.x, cell.z, dirX, dirZ, halfSpan)
+          );
+
+          dummy.position.set(
+            cell.x + dirX * len * 0.5,
+            catcher,
+            cell.z + dirZ * len * 0.5
+          );
+          dummy.rotation.set(0, yaw, 0);
+          dummy.scale.set(width, 1, width + len);
+          dummy.updateMatrix();
+          mesh.setMatrixAt(i, dummy.matrix);
+        }
+        mesh.instanceMatrix.needsUpdate = true;
+      }
+    }
+
+    if (this.decorShadows) {
+      const { mesh, material, casters, halfSpan } = this.decorShadows;
+      // 장식이 사라지면 그 그림자도 함께 사라져야 한다
+      const decorStrength = strength * state.decorOpacity;
+      const visible = decorStrength > 0.004;
+
+      mesh.visible = visible;
+      material.opacity = decorStrength;
+      material.userData.uniforms.uBend.value = state.bend;
+
+      if (visible) {
+        for (let i = 0; i < casters.length; i += 1) {
+          const caster = casters[i];
+          const len = Math.min(
+            shadowLength(caster.height, state.sunElevation),
+            // QR 판(한 단 높은 고원)에 올라타기 전에 끊는다
+            entryDistance(caster.x, caster.z, dirX, dirZ, halfSpan)
+          );
+          const width = caster.radius * 2;
+
+          dummy.position.set(
+            caster.x + dirX * len * 0.5,
+            caster.y + SHADOW_LIFT,
+            caster.z + dirZ * len * 0.5
+          );
+          dummy.rotation.set(0, yaw, 0);
+          dummy.scale.set(width, 1, width + len);
+          dummy.updateMatrix();
+          mesh.setMatrixAt(i, dummy.matrix);
+        }
+        mesh.instanceMatrix.needsUpdate = true;
+      }
+    }
   }
 
   _applyScanOverlay(state) {
@@ -980,6 +1223,8 @@ export class SceneEngine {
         darkHeight3d: this.darkMesh?.height3d,
         lightHeight3d: this.lightMesh?.height3d,
         blockSpread: this.theme?.getBlockSpread?.(),
+        sunElevation3d: this.sunAngles?.elevation,
+        sunAzimuth3d: this.sunAngles?.azimuth,
       });
 
       // 캡처 중에는 자동 회전/드래그 오프셋을 무시해 항상 정면 탑다운으로 담는다.
@@ -1178,6 +1423,7 @@ export class SceneEngine {
 
     for (const group of [
       this.blockGroup,
+      this.shadowGroup,
       this.decorGroup,
       this.sceneryGroup,
       this.celestialGroup,
@@ -1192,6 +1438,9 @@ export class SceneEngine {
     this.darkMesh = null;
     this.lightMesh = null;
     this.ground = null;
+    this.blockShadows = null;
+    this.decorShadows = null;
+    this.sunLight = null;
     this.lights = [];
     this.landmarks = [];
     this.heightmap = null;
@@ -1234,6 +1483,182 @@ export function normalizeBlockGeometry(geometry) {
   geometry.computeBoundingBox();
   geometry.computeBoundingSphere();
   return geometry;
+}
+
+/* ------------------------------------------------------------------ */
+/* 그림자 재질 · 텍스처                                                 */
+/* ------------------------------------------------------------------ */
+
+/**
+ * 투영 그림자용 재질.
+ *
+ * 구면 테마(B612 등)에서는 지면이 아래로 휘어 있으므로, 길게 뻗은 그림자가
+ * 지면에서 떠오르지 않도록 정점 셰이더에서 같은 곡률을 적용한다.
+ * CPU 에서는 인스턴스마다 하나의 행렬만 쓸 수 있어 길이 방향의 휨을 표현할
+ * 수 없기 때문에, 이 계산만 셰이더로 내린다.
+ *
+ * @param {THREE.Texture} map 알파 마스크
+ * @param {string} color 그림자 색 (테마 팔레트의 scanShadow)
+ * @returns {THREE.MeshBasicMaterial}
+ */
+function makeShadowMaterial(map, color) {
+  const material = new THREE.MeshBasicMaterial({
+    color: new THREE.Color(color),
+    map,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    fog: false,
+    toneMapped: false,
+    side: THREE.DoubleSide,
+  });
+
+  const uniforms = {
+    uBend: { value: 0 },
+    uRadius: { value: 40 },
+  };
+  material.userData.uniforms = uniforms;
+
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.uBend = uniforms.uBend;
+    shader.uniforms.uRadius = uniforms.uRadius;
+
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+        uniform float uBend;
+        uniform float uRadius;`
+      )
+      .replace(
+        '#include <project_vertex>',
+        `vec4 shadowWorld = vec4( transformed, 1.0 );
+        #ifdef USE_INSTANCING
+          shadowWorld = instanceMatrix * shadowWorld;
+        #endif
+        shadowWorld = modelMatrix * shadowWorld;
+        shadowWorld.y -= ( shadowWorld.x * shadowWorld.x + shadowWorld.z * shadowWorld.z )
+          / ( 2.0 * uRadius ) * uBend;
+        vec4 mvPosition = viewMatrix * shadowWorld;
+        gl_Position = projectionMatrix * mvPosition;`
+      );
+  };
+
+  return material;
+}
+
+/**
+ * 블록 그림자 마스크.
+ *
+ * 그림자를 드리운 쪽(v = 1)은 짙고 끝으로 갈수록 옅어진다. 실제로도 그림자
+ * 끝은 반그림자가 넓어져 흐릿해지므로, 해가 낮을 때 길게 뻗은 그림자가
+ * 판때기처럼 보이지 않게 해준다.
+ */
+function createRakingShadowTexture() {
+  return createShadowTexture(16, 64, (u, v) => {
+    // 끝으로 갈수록 옅게 (v=1 이 캐스터 쪽)
+    const along = 0.4 + 0.6 * Math.pow(v, 0.65);
+    // 옆면은 앨리어싱만 지울 만큼 아주 살짝. 더 부드럽게 하면 이웃한 모듈
+    // 그림자가 맞붙을 때 사이에 밝은 실선이 생긴다.
+    const across = smootherEdge(u, 0.045);
+    return along * across;
+  });
+}
+
+/** 장식용 부드러운 방사형 그림자 마스크 */
+function createBlobShadowTexture() {
+  return createShadowTexture(64, 64, (u, v) => {
+    const along = 0.2 + 0.8 * Math.pow(v, 0.9);
+    const dx = (u - 0.5) * 2;
+    const radial = Math.max(0, 1 - dx * dx);
+    return along * radial * radial;
+  });
+}
+
+/**
+ * 알파 마스크 텍스처를 절차적으로 만든다.
+ * 테마를 바꿀 때마다 새로 만든다 — 씬 정리(disposeObject)가 재질에 달린
+ * 텍스처를 함께 버리므로 공유 인스턴스를 두면 두 번째 테마에서 깨진다.
+ *
+ * @param {number} width
+ * @param {number} height
+ * @param {(u:number, v:number) => number} alphaAt 0~1 알파
+ */
+function createShadowTexture(width, height, alphaAt) {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+
+  const ctx = canvas.getContext('2d');
+  const image = ctx.createImageData(width, height);
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const u = (x + 0.5) / width;
+      // 캔버스의 위쪽이 UV 의 v = 1 (three 가 flipY 하므로)
+      const v = 1 - (y + 0.5) / height;
+      const i = (y * width + x) * 4;
+      image.data[i] = 255;
+      image.data[i + 1] = 255;
+      image.data[i + 2] = 255;
+      image.data[i + 3] = Math.round(clamp(alphaAt(u, v)) * 255);
+    }
+  }
+  ctx.putImageData(image, 0, 0);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.ClampToEdgeWrapping;
+  texture.wrapT = THREE.ClampToEdgeWrapping;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+/** 0/1 경계에서만 부드럽게 떨어지는 가장자리 마스크 */
+function smootherEdge(u, feather) {
+  const d = Math.min(u, 1 - u);
+  return clamp(d / feather);
+}
+
+/* ------------------------------------------------------------------ */
+/* 그림자 잘라내기                                                      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * (x, z) 에서 방향 (dx, dz) 로 나아갈 때 정사각 영역 밖으로 나가기까지의 거리.
+ * 그리드 위의 그림자가 한 단 낮은 바깥 바닥으로 넘어가지 않게 자르는 데 쓴다.
+ */
+function exitDistance(x, z, dx, dz, half) {
+  let t = Infinity;
+  if (Math.abs(dx) > 1e-6) t = Math.min(t, ((dx > 0 ? half : -half) - x) / dx);
+  if (Math.abs(dz) > 1e-6) t = Math.min(t, ((dz > 0 ? half : -half) - z) / dz);
+  return Math.max(t, 0);
+}
+
+/**
+ * (x, z) 에서 방향 (dx, dz) 로 나아갈 때 정사각 영역에 들어가기까지의 거리.
+ * 바깥 장식의 그림자가 한 단 높은 QR 판 위로 올라타지 않게 자르는 데 쓴다.
+ * 영영 들어가지 않으면 Infinity.
+ */
+function entryDistance(x, z, dx, dz, half) {
+  let near = -Infinity;
+  let far = Infinity;
+
+  for (const [p, d] of [
+    [x, dx],
+    [z, dz],
+  ]) {
+    if (Math.abs(d) < 1e-6) {
+      if (p < -half || p > half) return Infinity;
+      continue;
+    }
+    const t1 = (-half - p) / d;
+    const t2 = (half - p) / d;
+    near = Math.max(near, Math.min(t1, t2));
+    far = Math.min(far, Math.max(t1, t2));
+  }
+
+  const entry = Math.max(near, 0);
+  return far >= entry ? entry : Infinity;
 }
 
 /** 팔레트에서 가장 밝은 색 (선형 RGB) */
