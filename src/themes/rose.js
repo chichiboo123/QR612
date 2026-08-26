@@ -26,13 +26,13 @@ export const meta = {
   id: 'rose',
   label: '장미',
   caption: '유리돔 속 정원',
-  swatch: ['#D92F3D', '#3E7A5A', '#FFF0F4'],
+  swatch: ['#F2B3C5', '#3E7A5A', '#D92F3D'],
 };
 
 const PALETTE = {
   /* 3D 씬 */
-  dark: '#D92F3D', // 어린왕자의 장미를 떠올리는 선명한 진홍색 타일
-  darkEmissive: '#4A0D16',
+  dark: '#F2B3C5', // 정원 블록은 기존의 부드러운 꽃잎 핑크
+  darkEmissive: '#4A1F2C',
   light: '#4E8F6C', // 잎사귀빛 타일
   ground: '#3E7A5A', // 밝힌 미드나잇그린 정원 바닥
   groundEmissive: '#0C1D14',
@@ -84,7 +84,7 @@ export function getPlayerLight() {
  */
 export function getScanColors() {
   return {
-    dark: ['#D92F3D', '#D92F3D', '#C51F32', '#E4424E', '#B9162A', '#D92F3D'],
+    dark: ['#F2B3C5', '#F2B3C5', '#E8A2B8', '#F7C2D2', '#DC91AA', '#F2B3C5'],
     light: ['#4E8F6C', '#4E8F6C', '#5A9B76', '#447F60'],
   };
 }

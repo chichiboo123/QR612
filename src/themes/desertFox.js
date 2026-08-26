@@ -54,6 +54,21 @@ export function getCurvature() {
   return 0.45; // 사막 지평선이 둥글게 휘는 정도
 }
 
+/**
+ * QR 바깥 지면에 완만하게 이어지는 사구 파동을 만든다.
+ * 그리드 안쪽은 탐험 충돌 높이와 맞아야 하므로 평평하게 두고 외곽만 변형한다.
+ */
+export function getGroundDisplacement(x, z, matrixSize) {
+  const distance = Math.max(Math.abs(x), Math.abs(z));
+  const edge = matrixSize / 2 + 1;
+  const blend = Math.min(Math.max((distance - edge) / 10, 0), 1);
+  if (blend === 0) return 0;
+
+  const longWave = Math.sin(x * 0.095 + z * 0.035 + 0.8) * 0.8;
+  const crossWave = Math.sin(z * 0.13 - x * 0.025 - 0.4) * 0.45;
+  return (longWave + crossWave) * blend;
+}
+
 /** 사구는 능선마다 높이가 달라야 사막처럼 보인다 */
 export function getHeightJitter() {
   return 0.5;
@@ -265,7 +280,15 @@ function createDuneBlockGeometry(topScale) {
 
 /** 지평선에 겹쳐지는 길고 낮은 반구형 모래 능선. */
 function buildSandDune() {
-  const geometry = new THREE.SphereGeometry(1, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2);
+  const geometry = new THREE.SphereGeometry(
+    1,
+    24,
+    10,
+    0,
+    Math.PI * 2,
+    0,
+    Math.PI / 2
+  );
   const mesh = new THREE.Mesh(
     geometry,
     flatMaterial('#E6B66F', { emissive: '#3B2510' })
@@ -408,6 +431,7 @@ export default {
   getBackgroundSetup,
   getPlayerLight,
   getCurvature,
+  getGroundDisplacement,
   getHeightJitter,
   getColorVariation,
   getBlockSpread,

@@ -180,7 +180,9 @@ urlInput.element.classList.add('panel--url');
 themePicker.element.classList.add('panel--theme');
 actions.classList.add('panel--actions');
 
-main.append(urlInput.element, stageColumn, themePicker.element, actions);
+// 모바일에서는 설정을 모두 마친 뒤 결과를 보도록 입력 → 테마 → 스테이지 순서로 둔다.
+// 데스크톱은 grid-area가 시각 배치를 독립적으로 제어한다.
+main.append(urlInput.element, themePicker.element, stageColumn, actions);
 
 /* ------------------------------------------------------------------ */
 /* 엔진                                                                */
