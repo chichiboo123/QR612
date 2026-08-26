@@ -77,6 +77,20 @@ export function getPlayerLight() {
   return 0.25;
 }
 
+/**
+ * 탑다운 스캔 뷰의 모듈 색 후보.
+ * 행성 표면의 이끼 초록과 바오밥 껍질.
+ *
+ * 엔진이 이 색들의 명도만 스캔 안전 대역으로 끌어당기고 색상은 그대로 둔다.
+ * 덕분에 QR 이 단색 검정이 아니라 3D 씬과 같은 색 계열의 모자이크가 된다.
+ */
+export function getScanColors() {
+  return {
+    dark: ['#689F38', '#7CB342', '#33691E', '#8D6E63', '#558B2F', '#2E7D32'],
+    light: ['#F1F6EC', '#E9F1E0', '#F7F9F2', '#E2EDDA'],
+  };
+}
+
 export function getBackgroundSetup() {
   return {
     background: PALETTE.sky,
@@ -347,6 +361,7 @@ export default {
   ...meta,
   getBlockGeometry,
   getPalette,
+  getScanColors,
   placeDecorations,
   placeLandmarks,
   getBackgroundSetup,

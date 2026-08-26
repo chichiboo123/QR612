@@ -79,6 +79,20 @@ export function getPlayerLight() {
   return 0.5;
 }
 
+/**
+ * 탑다운 스캔 뷰의 모듈 색 후보.
+ * 잎사귀의 여러 초록과 나무껍질의 갈색.
+ *
+ * 엔진이 이 색들의 명도만 스캔 안전 대역으로 끌어당기고 색상은 그대로 둔다.
+ * 덕분에 QR 이 단색 검정이 아니라 3D 씬과 같은 색 계열의 모자이크가 된다.
+ */
+export function getScanColors() {
+  return {
+    dark: ['#1B5E20', '#00695C', '#33691E', '#5D4037', '#2E7D32', '#00796B'],
+    light: ['#F2F7EA', '#E9F1DE', '#F7FAF1', '#DFEBD2'],
+  };
+}
+
 export function getBackgroundSetup() {
   return {
     background: PALETTE.sky,
@@ -398,6 +412,7 @@ export default {
   ...meta,
   getBlockGeometry,
   getPalette,
+  getScanColors,
   placeDecorations,
   placeLandmarks,
   getBackgroundSetup,

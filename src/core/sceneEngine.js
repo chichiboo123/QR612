@@ -26,6 +26,12 @@ import {
   DEG,
 } from './transition.js';
 import { Explorer } from './explorer.js';
+import {
+  buildScanPalette,
+  pickCellColor,
+  DARK_GRAY,
+  LIGHT_GRAY,
+} from './scanColors.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 const BLACK = new THREE.Color(0x000000);
@@ -162,6 +168,18 @@ export class SceneEngine {
       palette.scanGround || palette.ground || palette.light || '#DDDDDD'
     );
 
+    // 테마가 준 색 목록을 스캔 안전 대역으로 보정해 둔다.
+    // 색상은 그대로 두고 명도만 끌어당기므로 3D 씬의 색감이 살아남는다.
+    const scanColors = this.theme.getScanColors?.() || {};
+    this.scanDarkPalette = buildScanPalette(
+      scanColors.dark || [palette.scanDark],
+      DARK_GRAY
+    );
+    this.scanLightPalette = buildScanPalette(
+      scanColors.light || [palette.scanLight],
+      LIGHT_GRAY
+    );
+
     this._buildBackground();
     this._buildBlocks(matrix, size);
     this._buildGround(size);
@@ -253,6 +271,13 @@ export class SceneEngine {
       }
     }
 
+    for (const cell of darkCells) {
+      cell.scanColor = pickCellColor(this.scanDarkPalette, cell.col, cell.row, 3);
+    }
+    for (const cell of lightCells) {
+      cell.scanColor = pickCellColor(this.scanLightPalette, cell.col, cell.row, 11);
+    }
+
     this.darkCells = darkCells;
     this.lightCells = lightCells;
     this.matrix = matrix;
@@ -270,6 +295,11 @@ export class SceneEngine {
     // 전환이 시작되면 엔진이 안개를 걷어내고(fogRelease), 스캔 뷰에서는
     // 안개 영향을 받지 않는 오버레이가 최종 QR을 그리므로 대비는 안전하다.
     material.fog = true;
+
+    // 재질 색은 흰색으로 두고 실제 albedo 는 인스턴스 색으로 넘긴다.
+    // 그래야 셀마다 다른 색(3D 테마색 → 스캔색)을 자유롭게 보간할 수 있다.
+    const baseColor = material.color.clone();
+    material.color.setRGB(1, 1, 1);
 
     const mesh = new THREE.InstancedMesh(geometry, material, Math.max(count, 1));
     mesh.count = count;
@@ -290,7 +320,7 @@ export class SceneEngine {
     return {
       mesh,
       material,
-      baseColor: material.color ? material.color.clone() : new THREE.Color(),
+      baseColor,
       baseEmissive: material.emissive
         ? material.emissive.clone()
         : new THREE.Color(0x000000),
@@ -414,8 +444,11 @@ export class SceneEngine {
     shadow.frustumCulled = false;
     shadow.visible = false;
 
-    // 2. 바탕 판
-    const baseMat = makeMaterial(this.scanLight);
+    // 2. 바탕 판 — light 팔레트 중 가장 밝은 색으로 (모듈 사이 바탕)
+    const plateColor = new THREE.Color().setRGB(
+      ...brightest(this.scanLightPalette)
+    );
+    const baseMat = makeMaterial(plateColor);
     const base = new THREE.Mesh(
       new THREE.BoxGeometry(cardHalf * 2, 0.3, cardHalf * 2),
       baseMat
@@ -424,8 +457,8 @@ export class SceneEngine {
     base.frustumCulled = false;
     base.visible = false;
 
-    // 3. 모듈 타일
-    const moduleMat = makeMaterial(this.scanDark);
+    // 3. 모듈 타일 — 재질은 흰색, 실제 색은 셀마다 instanceColor 로
+    const moduleMat = makeMaterial('#ffffff');
     const modules = new THREE.InstancedMesh(
       // 1.004 — 부동소수 오차로 모듈 사이에 실틈이 생기지 않도록 아주 살짝 겹친다
       new THREE.BoxGeometry(1.004, 0.34, 1.004),
@@ -435,17 +468,23 @@ export class SceneEngine {
     modules.count = this.darkCells.length;
     modules.frustumCulled = false;
     modules.visible = false;
+    modules.instanceColor = new THREE.InstancedBufferAttribute(
+      new Float32Array(Math.max(this.darkCells.length, 1) * 3),
+      3
+    );
 
     const dummy = this._dummy;
     for (let i = 0; i < this.darkCells.length; i += 1) {
-      const { x, z } = this.darkCells[i];
-      dummy.position.set(x, y + 0.22, z);
+      const cell = this.darkCells[i];
+      dummy.position.set(cell.x, y + 0.22, cell.z);
       dummy.quaternion.identity();
       dummy.scale.set(1, 1, 1);
       dummy.updateMatrix();
       modules.setMatrixAt(i, dummy.matrix);
+      modules.instanceColor.setXYZ(i, ...cell.scanColor);
     }
     modules.instanceMatrix.needsUpdate = true;
+    modules.instanceColor.needsUpdate = true;
 
     this.scene.add(shadow, base, modules);
     this._trackDisposable(shadow);
@@ -646,9 +685,12 @@ export class SceneEngine {
     const bend = state.bend;
     const sxz = state.blockScaleXZ;
 
-    // 스캔 뷰로 갈수록 밝기 변주를 1(=무변화)로 되돌려 QR 대비를 균일하게 만든다
+    // 3D 에서는 테마색 × 셀별 밝기 변주,
+    // 스캔 뷰에서는 셀별 스캔색으로 부드럽게 갈아탄다.
     const variation = this.colorVariation * (1 - state.flat);
     const colors = entry.mesh.instanceColor;
+    const base = entry.baseColor;
+    const flat = state.flat;
 
     for (let i = 0; i < cells.length; i += 1) {
       const { x, z } = cells[i];
@@ -671,7 +713,13 @@ export class SceneEngine {
 
       if (colors) {
         const tint = 1 + (cells[i].tint - 0.5) * 2 * variation;
-        colors.setXYZ(i, tint, tint, tint);
+        const scan = cells[i].scanColor;
+        colors.setXYZ(
+          i,
+          base.r * tint + (scan[0] - base.r * tint) * flat,
+          base.g * tint + (scan[1] - base.g * tint) * flat,
+          base.b * tint + (scan[2] - base.b * tint) * flat
+        );
       }
     }
 
@@ -738,15 +786,11 @@ export class SceneEngine {
   _applyMaterials(state) {
     const flat = state.flat;
 
-    // 블록은 스캔 카드와 "같은 색 · 같은 조명" 으로 수렴한다.
-    // 그래야 카드가 페이드인될 때 교체되는 순간이 보이지 않는다.
+    // 블록 albedo 는 instanceColor 가 셀 단위로 다루므로 여기서는 발광만 끈다.
+    // (스캔 뷰에서 발광이 남으면 셀별 색이 씻겨 대비가 흐려진다)
     for (const entry of [this.darkMesh, this.lightMesh]) {
-      if (!entry) continue;
-      const scan = entry === this.darkMesh ? this.scanDark : this.scanLight;
-      entry.material.color.copy(entry.baseColor).lerp(scan, flat);
-      if (entry.material.emissive) {
-        entry.material.emissive.copy(entry.baseEmissive).lerp(BLACK, flat);
-      }
+      if (!entry?.material.emissive) continue;
+      entry.material.emissive.copy(entry.baseEmissive).lerp(BLACK, flat);
     }
 
     // 바닥은 흰색이 아니라 "밝은 풍경색" 으로 수렴한다.
@@ -1123,6 +1167,16 @@ export function normalizeBlockGeometry(geometry) {
   geometry.computeBoundingBox();
   geometry.computeBoundingSphere();
   return geometry;
+}
+
+/** 팔레트에서 가장 밝은 색 (선형 RGB) */
+function brightest(palette) {
+  return palette.reduce((best, c) =>
+    0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2] >
+    0.2126 * best[0] + 0.7152 * best[1] + 0.0722 * best[2]
+      ? c
+      : best
+  );
 }
 
 /** 탐험 중 눈에 띄어야 하는 랜드마크 표식 (빛기둥 + 회전하는 마름모) */

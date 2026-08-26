@@ -88,6 +88,20 @@ export function getPlayerLight() {
   return 1.15;
 }
 
+/**
+ * 탑다운 스캔 뷰의 모듈 색 후보.
+ * 건물 외벽의 남색과 창문 불빛의 앰버(어둡게 내린 색).
+ *
+ * 엔진이 이 색들의 명도만 스캔 안전 대역으로 끌어당기고 색상은 그대로 둔다.
+ * 덕분에 QR 이 단색 검정이 아니라 3D 씬과 같은 색 계열의 모자이크가 된다.
+ */
+export function getScanColors() {
+  return {
+    dark: ['#1A237E', '#0D47A1', '#B8860B', '#00695C', '#4527A0', '#01579B'],
+    light: ['#F2F4FA', '#E9EDF7', '#F7F9FC', '#DFE6F2'],
+  };
+}
+
 export function getBackgroundSetup() {
   const rand = makeRandom(76543);
   const stars = [];
@@ -403,6 +417,7 @@ export default {
   ...meta,
   getBlockGeometry,
   getPalette,
+  getScanColors,
   placeDecorations,
   placeLandmarks,
   getBackgroundSetup,

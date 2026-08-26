@@ -76,6 +76,20 @@ export function getPlayerLight() {
   return 0.9;
 }
 
+/**
+ * 탑다운 스캔 뷰의 모듈 색 후보.
+ * 밤하늘의 남색과 별빛의 금빛(어둡게 내린 청동빛).
+ *
+ * 엔진이 이 색들의 명도만 스캔 안전 대역으로 끌어당기고 색상은 그대로 둔다.
+ * 덕분에 QR 이 단색 검정이 아니라 3D 씬과 같은 색 계열의 모자이크가 된다.
+ */
+export function getScanColors() {
+  return {
+    dark: ['#1A237E', '#283593', '#B8860B', '#4527A0', '#01579B', '#311B92'],
+    light: ['#FAF4E2', '#F4ECD6', '#FDF8EC', '#EFE6CE'],
+  };
+}
+
 export function getBackgroundSetup() {
   const rand = makeRandom(20240612);
   const stars = [];
@@ -298,6 +312,7 @@ export default {
   ...meta,
   getBlockGeometry,
   getPalette,
+  getScanColors,
   placeDecorations,
   placeLandmarks,
   getBackgroundSetup,
