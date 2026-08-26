@@ -85,8 +85,8 @@ export function getPlayerLight() {
  */
 export function getScanColors() {
   return {
-    dark: ['#1A237E', '#283593', '#B8860B', '#4527A0', '#01579B', '#311B92'],
-    light: ['#FAF4E2', '#F4ECD6', '#FDF8EC', '#EFE6CE'],
+    dark: ['#FFD972', '#FFD972', '#F4C95D', '#FFE18A', '#E9B942', '#FFD972'],
+    light: ['#2E4288', '#2E4288', '#354B94', '#283B7C'],
   };
 }
 

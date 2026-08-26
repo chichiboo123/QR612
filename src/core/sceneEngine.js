@@ -457,25 +457,28 @@ export class SceneEngine {
     base.frustumCulled = false;
     base.visible = false;
 
-    // 3. 모듈 타일 — 재질은 흰색, 실제 색은 셀마다 instanceColor 로
+    // 3. 모듈 타일 — dark와 light 모두 3D 블록에서 이어진 셀별 색으로 칠한다.
+    // 이전에는 dark만 타일이고 light는 단색 판이라 3D 장면과 결과의 괴리가 컸다.
+    // 두 팔레트 모두 동일 밝기로 정규화되므로 light 타일을 추가해도 판독성은 유지된다.
+    const scanCells = [...this.darkCells, ...this.lightCells];
     const moduleMat = makeMaterial('#ffffff');
     const modules = new THREE.InstancedMesh(
       // 1.004 — 부동소수 오차로 모듈 사이에 실틈이 생기지 않도록 아주 살짝 겹친다
       new THREE.BoxGeometry(1.004, 0.34, 1.004),
       moduleMat,
-      Math.max(this.darkCells.length, 1)
+      Math.max(scanCells.length, 1)
     );
-    modules.count = this.darkCells.length;
+    modules.count = scanCells.length;
     modules.frustumCulled = false;
     modules.visible = false;
     modules.instanceColor = new THREE.InstancedBufferAttribute(
-      new Float32Array(Math.max(this.darkCells.length, 1) * 3),
+      new Float32Array(Math.max(scanCells.length, 1) * 3),
       3
     );
 
     const dummy = this._dummy;
-    for (let i = 0; i < this.darkCells.length; i += 1) {
-      const cell = this.darkCells[i];
+    for (let i = 0; i < scanCells.length; i += 1) {
+      const cell = scanCells[i];
       dummy.position.set(cell.x, y + 0.22, cell.z);
       dummy.quaternion.identity();
       dummy.scale.set(1, 1, 1);
