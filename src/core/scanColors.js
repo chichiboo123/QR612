@@ -55,7 +55,11 @@ export const LIGHT_GRAY = 0.9;
  * 등가중·녹색가중 그레이가 벌어져도 되는 최대 폭.
  * 팔레트 안 밝기 편차를 8×8 블록 한계(24/255 ≈ 0.094) 아래로 묶어 준다.
  */
-export const MAX_DIVERGENCE = 0.045;
+// 0.07 stays below the 24/255 local-threshold boundary while retaining much
+// more of saturated greens, blues and warm sand/rose hues.  Dark and light
+// modules still share their respective target gray, so the extra chroma does
+// not weaken the QR silhouette.
+export const MAX_DIVERGENCE = 0.07;
 
 /* ------------------------------------------------------------------ */
 /* 색 변환                                                             */

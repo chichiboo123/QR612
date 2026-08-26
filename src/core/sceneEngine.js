@@ -639,7 +639,12 @@ export class SceneEngine {
 
     for (let i = 0; i < meshes.length; i += 1) {
       meshes[i].visible = visible;
-      materials[i].opacity = visible ? opacities[i] : 0;
+      // The overlay used to become fully opaque on its very first visible
+      // frame.  During the remaining camera move that looked like a giant QR
+      // board cutting through every theme (and was especially conspicuous
+      // around trees).  Respect the transition value so the card only takes
+      // over after the terrain has flattened beneath it.
+      materials[i].opacity = visible ? opacities[i] * o : 0;
     }
 
     const replaced = o >= 0.999;
@@ -1124,7 +1129,11 @@ export class SceneEngine {
 
   _clearScene() {
     if (this.scanOverlay) {
-      this.scene.remove(this.scanOverlay.base, this.scanOverlay.modules);
+      // Scan overlay meshes live directly on the scene.  Older code attempted
+      // to remove properties that did not exist, so every theme switch leaked
+      // another complete QR card into the scene.  Removing the tracked mesh
+      // list prevents intermittent stacked/floating cards across all themes.
+      this.scene.remove(...this.scanOverlay.meshes);
       this.scanOverlay = null;
     }
 
