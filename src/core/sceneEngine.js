@@ -29,6 +29,7 @@ import { Explorer } from './explorer.js';
 import {
   buildScanPalette,
   pickCellColor,
+  hexToLinear,
   DARK_GRAY,
   LIGHT_GRAY,
 } from './scanColors.js';
@@ -175,6 +176,12 @@ export class SceneEngine {
       scanColors.light || [palette.scanLight],
       LIGHT_GRAY
     );
+    // A small, off-centre roof detail may use the original 3D colour without
+    // compromising the normalised centre of a QR module.  This is the visual
+    // bridge that lets the final card retain gold, foliage green, rose pink,
+    // sand and city blue instead of reducing every dark module to near-black.
+    this.scanDarkAccents = (scanColors.dark || [palette.dark]).map(hexToLinear);
+    this.scanLightAccents = (scanColors.light || [palette.light]).map(hexToLinear);
 
     this._buildBackground();
     this._buildBlocks(matrix, size);
@@ -269,9 +276,11 @@ export class SceneEngine {
 
     for (const cell of darkCells) {
       cell.scanColor = pickCellColor(this.scanDarkPalette, cell.col, cell.row, 3);
+      cell.scanAccent = pickCellColor(this.scanDarkAccents, cell.col, cell.row, 3);
     }
     for (const cell of lightCells) {
       cell.scanColor = pickCellColor(this.scanLightPalette, cell.col, cell.row, 11);
+      cell.scanAccent = pickCellColor(this.scanLightAccents, cell.col, cell.row, 11);
     }
 
     this.darkCells = darkCells;
@@ -485,15 +494,45 @@ export class SceneEngine {
     modules.instanceMatrix.needsUpdate = true;
     modules.instanceColor.needsUpdate = true;
 
-    this.scene.add(shadow, base, modules);
+    // 4. 항공사진의 지붕·초목·모래 결처럼 보이는 작은 원색 패치.
+    // QR 리더가 샘플링하는 모듈 중앙과 타이밍 패턴 실루엣은 정규화 색으로
+    // 그대로 남기고, 좌상단 14%에만 실제 3D 팔레트를 되돌린다. 따라서 전체를
+    // 검게 누르지 않고도 여섯 테마의 원색을 안전하게 체감할 수 있다.
+    const accentMat = makeMaterial('#ffffff');
+    const accents = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(0.38, 0.025, 0.38),
+      accentMat,
+      Math.max(scanCells.length, 1)
+    );
+    accents.count = scanCells.length;
+    accents.frustumCulled = false;
+    accents.visible = false;
+    accents.instanceColor = new THREE.InstancedBufferAttribute(
+      new Float32Array(Math.max(scanCells.length, 1) * 3),
+      3
+    );
+    for (let i = 0; i < scanCells.length; i += 1) {
+      const cell = scanCells[i];
+      dummy.position.set(cell.x - 0.27, y + 0.405, cell.z - 0.27);
+      dummy.quaternion.identity();
+      dummy.scale.set(1, 1, 1);
+      dummy.updateMatrix();
+      accents.setMatrixAt(i, dummy.matrix);
+      accents.instanceColor.setXYZ(i, ...cell.scanAccent);
+    }
+    accents.instanceMatrix.needsUpdate = true;
+    accents.instanceColor.needsUpdate = true;
+
+    this.scene.add(shadow, base, modules, accents);
     this._trackDisposable(shadow);
     this._trackDisposable(base);
     this._trackDisposable(modules);
+    this._trackDisposable(accents);
 
     this.scanOverlay = {
-      meshes: [shadow, base, modules],
-      materials: [shadowMat, baseMat, moduleMat],
-      opacities: [0.24, 1, 1],
+      meshes: [shadow, base, modules, accents],
+      materials: [shadowMat, baseMat, moduleMat, accentMat],
+      opacities: [0.24, 1, 1, 0.82],
       cardHalf,
     };
   }
@@ -639,7 +678,12 @@ export class SceneEngine {
 
     for (let i = 0; i < meshes.length; i += 1) {
       meshes[i].visible = visible;
-      materials[i].opacity = visible ? opacities[i] : 0;
+      // The overlay used to become fully opaque on its very first visible
+      // frame.  During the remaining camera move that looked like a giant QR
+      // board cutting through every theme (and was especially conspicuous
+      // around trees).  Respect the transition value so the card only takes
+      // over after the terrain has flattened beneath it.
+      materials[i].opacity = visible ? opacities[i] * o : 0;
     }
 
     const replaced = o >= 0.999;
@@ -1124,7 +1168,11 @@ export class SceneEngine {
 
   _clearScene() {
     if (this.scanOverlay) {
-      this.scene.remove(this.scanOverlay.base, this.scanOverlay.modules);
+      // Scan overlay meshes live directly on the scene.  Older code attempted
+      // to remove properties that did not exist, so every theme switch leaked
+      // another complete QR card into the scene.  Removing the tracked mesh
+      // list prevents intermittent stacked/floating cards across all themes.
+      this.scene.remove(...this.scanOverlay.meshes);
       this.scanOverlay = null;
     }
 
