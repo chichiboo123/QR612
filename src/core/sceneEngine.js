@@ -639,7 +639,7 @@ export class SceneEngine {
 
     for (let i = 0; i < meshes.length; i += 1) {
       meshes[i].visible = visible;
-      materials[i].opacity = opacities[i] * o;
+      materials[i].opacity = visible ? opacities[i] : 0;
     }
 
     const replaced = o >= 0.999;
