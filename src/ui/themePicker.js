@@ -1,5 +1,5 @@
 /**
- * ui/themePicker.js — 4개 테마 썸네일 카드 선택기
+ * ui/themePicker.js — 테마 썸네일 카드 선택기
  * 선택이 바뀌면 onChange 로 알리고, main.js 가 씬을 리빌드한다.
  */
 
@@ -12,11 +12,16 @@
 export function createThemePicker({ themes, value, onChange }) {
   const section = document.createElement('section');
   section.className = 'panel';
+  section.setAttribute('aria-labelledby', 'theme-picker-title');
   section.innerHTML = `
-    <h2 class="panel__title">
-      <span class="material-icons-outlined" aria-hidden="true">palette</span>
-      테마 선택
-    </h2>
+    <div class="panel__heading">
+      <span class="step-badge" aria-hidden="true">2</span>
+      <h2 class="panel__title" id="theme-picker-title">
+        <span class="material-icons-outlined" aria-hidden="true">palette</span>
+        테마 선택
+      </h2>
+    </div>
+    <p class="panel__description">장면의 분위기를 골라 보세요. QR 내용은 그대로 유지됩니다.</p>
     <div class="theme-picker" role="radiogroup" aria-label="QR코드 테마"></div>
   `;
 
