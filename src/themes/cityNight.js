@@ -208,16 +208,22 @@ function createBuildingMaterial() {
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',
-        '#include <common>\nvarying vec3 vBuildingPosition;\nvarying vec3 vBuildingNormal;'
+        '#include <common>\nvarying vec3 vBuildingPosition;\nvarying vec3 vBuildingNormal;\nvarying float vBuildingSeed;'
       )
       .replace(
         '#include <begin_vertex>',
-        '#include <begin_vertex>\nvBuildingPosition = position;\nvBuildingNormal = normal;'
+        `#include <begin_vertex>
+         vBuildingPosition = position;
+         vBuildingNormal = normal;
+         vBuildingSeed = 0.0;
+         #ifdef USE_INSTANCING
+           vBuildingSeed = dot(instanceMatrix[3].xz, vec2(17.17, 41.73));
+         #endif`
       );
     shader.fragmentShader = shader.fragmentShader
       .replace(
         '#include <common>',
-        '#include <common>\nuniform vec3 windowColor;\nvarying vec3 vBuildingPosition;\nvarying vec3 vBuildingNormal;'
+        '#include <common>\nuniform vec3 windowColor;\nvarying vec3 vBuildingPosition;\nvarying vec3 vBuildingNormal;\nvarying float vBuildingSeed;'
       )
       .replace(
         '#include <emissivemap_fragment>',
@@ -226,15 +232,16 @@ function createBuildingMaterial() {
          vec2 facadeUv = abs(vBuildingNormal.x) > 0.5
            ? vec2(vBuildingPosition.z, vBuildingPosition.y)
            : vec2(vBuildingPosition.x, vBuildingPosition.y);
-         vec2 windowCell = fract((facadeUv + 0.5) * vec2(4.0, 7.0));
-         float frame = step(0.20, windowCell.x) * step(windowCell.x, 0.80)
-           * step(0.20, windowCell.y) * step(windowCell.y, 0.74);
-         vec2 windowId = floor((facadeUv + 0.5) * vec2(4.0, 7.0));
-         float lit = step(0.34, fract(sin(dot(windowId, vec2(12.9898, 78.233))) * 43758.5453));
-         totalEmissiveRadiance += windowColor * facade * frame * lit * 1.45;`
+         vec2 windowCell = fract((facadeUv + 0.5) * vec2(2.0, 4.0));
+         float frame = step(0.24, windowCell.x) * step(windowCell.x, 0.76)
+           * step(0.26, windowCell.y) * step(windowCell.y, 0.70);
+         vec2 windowId = floor((facadeUv + 0.5) * vec2(2.0, 4.0));
+         float randomWindow = fract(sin(dot(windowId + vBuildingSeed, vec2(12.9898, 78.233))) * 43758.5453);
+         float lit = step(0.62, randomWindow);
+         totalEmissiveRadiance += windowColor * facade * frame * lit * 0.72;`
       );
   };
-  material.customProgramCacheKey = () => 'qr612-city-lit-windows-v1';
+  material.customProgramCacheKey = () => 'qr612-city-lit-windows-v2';
   return material;
 }
 
