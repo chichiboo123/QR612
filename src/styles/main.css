@@ -646,13 +646,6 @@ body {
   78%, 100% { opacity: 0; transform: translate(-50%, -6px); }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .stage[data-view='scan'] .stage__sun-wash,
-  .stage[data-view='scan'] .stage__reveal-copy {
-    animation: none;
-  }
-}
-
 .stage__canvas canvas,
 .qr612-canvas {
   display: block;
@@ -1246,7 +1239,11 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  * {
+  /*
+    일반 UI 모션은 줄이되, QR이 만들어지는 과정을 설명하는 두 레이어는 제외한다.
+    이전의 전역 규칙은 sunlight-reveal까지 0.01ms로 줄여 3D 전환과 어긋나게 했다.
+  */
+  *:not(.stage__sun-wash):not(.stage__reveal-copy) {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }

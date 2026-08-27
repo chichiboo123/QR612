@@ -24,6 +24,7 @@
 import * as THREE from 'three';
 import {
   TransitionController,
+  TRANSITION,
   computeTransitionState,
   clamp,
   lerp,
@@ -113,13 +114,11 @@ export class SceneEngine {
     this._buildScanLights();
     this._buildPlayerLight();
 
-    const reducedMotion =
-      typeof window !== 'undefined' &&
-      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-
     this.transition = new TransitionController({
-      // 모션 민감 설정을 켠 사용자에게는 전환을 거의 즉시 끝낸다
-      duration: reducedMotion ? 0.08 : undefined,
+      // 이 전환은 장식적인 움직임이 아니라 그림자가 QR이 되는 핵심 콘텐츠다.
+      // prefers-reduced-motion에서 0.08초로 덮어쓰던 코드는 운영체제/브라우저
+      // 설정에 따라 전체 연출을 사실상 jumpTo처럼 만들어 버렸으므로 사용하지 않는다.
+      duration: TRANSITION.duration,
       onChange: (t) => this.options.onViewChange?.(t),
     });
 
