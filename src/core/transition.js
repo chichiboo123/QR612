@@ -17,11 +17,11 @@
  *                 어질러져 있던 명암이 걷히고 QR 격자가 또렷해진다.
  *                 = 이 풍경이 사실 QR 이었다는 것이 빛으로 드러난다.
  *   3) 0.56~1.00  블록이 내려앉아 평평해지고 색이 스캔 색으로 수렴한다.
- *   4) 0.72~1.00  카메라가 마지막으로 정수리까지 올라가고 스캔 카드가 덮는다.
+ *   4) 0.74~1.00  카메라가 마지막으로 정수리까지 올라가고 스캔 카드가 덮는다.
  *
- * 그림자 길이는 실제 광학과 같게 h / tan(태양고도) 로 계산한다. 해가 천정에
- * 서면 길이가 정확히 0 이 되어 그림자는 자기 모듈 발자국 안으로 사라진다.
- * 연출과 물리가 어긋나는 지점이 없다.
+ * 그림자는 가짜 평면이 아니라 진짜 그림자맵이다. 해의 고도만 움직이면 길이는
+ * 광학이 알아서 h / tan(고도) 로 정해 주고, 천정에서는 0 이 되어 그림자가 제
+ * 모듈 발자국 안으로 사라진다. 연출과 물리가 어긋나는 지점이 없다.
  *
  * 이 모듈은 Three.js 에 의존하지 않는 순수 수학 계층이다.
  */
@@ -69,24 +69,34 @@ export const TRANSITION = {
   /**
    * 중간 관람석.
    *
-   * 그림자는 블록 사이 낮은 면(= light 모듈 윗면)에 떨어지는데, 낮은 사선에서는
-   * 그 면이 앞쪽 블록에 완전히 가려 그림자가 한 톨도 보이지 않는다. 그래서
-   * 카메라를 먼저 이 높은 사선까지 올려 두고, 거기서 해가 하는 일을 지켜본다.
-   * 68도면 블록 뒤로 숨는 폭이 0.4모듈 정도라 골목 바닥이 대부분 드러난다.
+   * 그림자맵을 쓰기 때문에 블록은 서로의 벽면에 그림자를 드리운다. 골목 바닥이
+   * 보이지 않아도 그림자가 읽히므로, 카메라를 높이 올릴 이유가 없다.
+   * 오히려 낮은 사선일수록 길게 누운 그림자가 극적으로 보이므로 3D 의 성격을
+   * 최대한 지키는 선(52도)에서 해가 하는 일을 지켜본다.
    */
-  fovWatch: 34,
-  elevationWatch: 68,
-  azimuthWatch: 20,
+  fovWatch: 38,
+  elevationWatch: 52,
+  azimuthWatch: 30,
 
-  /** 카메라가 관람석까지 올라가는 구간 (전환 앞부분에서 빠르게) */
-  camLiftEnd: 0.34,
+  /**
+   * 카메라가 관람석까지 올라가는 구간.
+   * 36도에서는 골목이 앞 블록에 가려 그림자가 안 보이므로, 해가 제일 낮은
+   * 시점(0.2)에는 이미 절반쯤 올라와 있어야 그림자가 보이기 시작한다.
+   */
+  camLiftEnd: 0.42,
   /** 관람석에서 정수리까지 마지막으로 올라가는 구간 */
-  camSettleStart: 0.72,
+  camSettleStart: 0.74,
 
   /* --- 해(그림자 리빌의 주인공) ---------------------------------- */
 
-  /** 도입부에서 해가 잠깐 내려앉는 고도(도). 그림자가 가장 길어지는 지점 */
-  sunElevationLow: 15,
+  /**
+   * 도입부에서 해가 내려앉는 고도(도).
+   *
+   * 더 낮추면 그림자가 서로 겹쳐 그리드 전체가 고르게 어두워질 뿐 "그림자"로
+   * 읽히지 않는다. 24도쯤이 블록 그림자가 2~4모듈로 뻗어 골목마다 명암이
+   * 교차하는, 가장 그림자다운 구간이다.
+   */
+  sunElevationLow: 24,
   /** 마지막에 해가 서는 고도(도). 90도 = 그림자 길이 0 = 모듈 발자국 */
   sunElevationHigh: 90,
   /** 해가 기우는 구간 → 다시 떠오르는 구간 (두 값이 같아야 이어진다) */
@@ -98,14 +108,6 @@ export const TRANSITION = {
    */
   sunSwingStart: 0.05,
   sunSwingEnd: 0.72,
-  /** 그림자가 아무리 길어져도 이 길이(모듈)를 부드럽게 넘지 않는다 */
-  maxShadowLength: 14,
-
-  /** 그림자 농도: 평상시 → 수렴할 때 짙어짐 → 스캔 카드에 자리를 내주며 소멸 */
-  shadowOpacityRest: 0.34,
-  shadowOpacityPeak: 0.56,
-  shadowFadeStart: 0.84,
-  shadowFadeEnd: 0.97,
 
   /* --- 블록 · 장식 ------------------------------------------------ */
 
@@ -142,7 +144,7 @@ export const TRANSITION = {
 
   /**
    * 구면 곡률(B612)이 평면으로 펴지는 구간.
-   * 그림자도 정점 셰이더에서 같은 곡률을 따라가므로(makeShadowMaterial)
+   * 그림자맵은 깊이 기반이라 휜 지형도 그대로 따라가므로,
    * 작은 행성의 모양을 전환 중반까지 넉넉히 남겨둘 수 있다.
    */
   flattenCurveStart: 0.1,
@@ -157,35 +159,8 @@ export const TRANSITION = {
   scanOverlayEnd: 1,
 
   /** 전환 소요 시간(초) — 그림자가 훑고 지나가는 시간이 필요하다 */
-  duration: 1.85,
+  duration: 2.1,
 };
-
-/* ------------------------------------------------------------------ */
-/* 그림자 수학                                                          */
-/* ------------------------------------------------------------------ */
-
-/**
- * 평행광 아래에서 높이 h 인 물체가 드리우는 그림자의 길이.
- *
- * 기본은 실제 광학과 같은 h / tan(고도) 이지만, 해가 아주 낮을 때 그림자가
- * 화면 밖까지 뻗어 나가면 화면이 지저분해지므로 max 로 완만히 수렴시킨다.
- * (1 - e^-x) 형태라 짧은 그림자는 거의 그대로 두고 긴 그림자만 눌린다.
- *
- * @param {number} height 그림자를 받는 면 위로 솟은 높이
- * @param {number} sunElevationDeg 태양 고도(도)
- * @param {number} [max] 부드럽게 수렴할 최대 길이
- * @returns {number}
- */
-export function shadowLength(
-  height,
-  sunElevationDeg,
-  max = TRANSITION.maxShadowLength
-) {
-  if (height <= 0) return 0;
-  const el = clamp(sunElevationDeg, 0.5, 90) * DEG;
-  const raw = height / Math.tan(el);
-  return max * (1 - Math.exp(-raw / max));
-}
 
 /** from 에서 to 로 갈 때 360도를 넘지 않는 최단 경로의 목표각 */
 export function shortestAngle(from, to) {
@@ -341,14 +316,6 @@ export function computeTransitionState(progress, ctx) {
     )
   );
 
-  const shadowStrength =
-    lerp(
-      TRANSITION.shadowOpacityRest,
-      TRANSITION.shadowOpacityPeak,
-      smoothstep(0, 0.45, p)
-    ) *
-    (1 - smoothstep(TRANSITION.shadowFadeStart, TRANSITION.shadowFadeEnd, p));
-
   /* --- 카메라 (2단: 관람석까지 → 정수리까지) ---------------------- */
 
   // 1단. 그림자가 보이는 높은 사선까지 먼저 올라간다.
@@ -400,6 +367,13 @@ export function computeTransitionState(progress, ctx) {
 
   const flat = smoothstep(TRANSITION.flattenStart, TRANSITION.flattenEnd, p);
 
+  // 해가 낮게 기울면 채움광을 걷어 그림자가 실제로 읽히게 한다.
+  // 테마 조명은 반구광 2.0 + 앰비언트 0.8 로 채움이 강해서, 그대로 두면
+  // 그림자맵을 켜도 그늘이 거의 밝기 차이를 내지 못한다. 해가 기울수록
+  // 대비가 깊어지는 건 실제 저녁빛의 성질이기도 하다.
+  const sunContrast =
+    smoothstep(0, 0.28, p) * (1 - smoothstep(0.7, 0.92, p));
+
   const bend =
     curvature *
     (1 - smoothstep(TRANSITION.flattenCurveStart, TRANSITION.flattenCurveEnd, p));
@@ -422,8 +396,8 @@ export function computeTransitionState(progress, ctx) {
     sunElevation,
     /** 태양 방위각(도). 카메라와 같은 좌표계(0도 = +Z) */
     sunAzimuth,
-    /** 그림자 불투명도 */
-    shadowStrength,
+    /** 채움광을 걷고 해를 세우는 정도 (0 = 테마 원래 조명) */
+    sunContrast,
     /** 안개를 걷어내는 정도 (스캔 카드가 오기 전에 대비를 확보한다) */
     fogRelease: smoothstep(0.35, 0.8, p),
     /**
