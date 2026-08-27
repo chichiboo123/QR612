@@ -24,6 +24,7 @@
 import * as THREE from 'three';
 import {
   TransitionController,
+  TRANSITION,
   computeTransitionState,
   clamp,
   lerp,
@@ -40,6 +41,7 @@ import {
 
 const UP = new THREE.Vector3(0, 1, 0);
 const BLACK = new THREE.Color(0x000000);
+const WARM_SUN = new THREE.Color(0xffc56f);
 
 /** 블록 사이 z-fighting 방지를 위한 최소 단차 */
 const GROUND_OFFSET = 0.02;
@@ -112,13 +114,11 @@ export class SceneEngine {
     this._buildScanLights();
     this._buildPlayerLight();
 
-    const reducedMotion =
-      typeof window !== 'undefined' &&
-      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-
     this.transition = new TransitionController({
-      // 모션 민감 설정을 켠 사용자에게는 전환을 거의 즉시 끝낸다
-      duration: reducedMotion ? 0.08 : undefined,
+      // 이 전환은 장식적인 움직임이 아니라 그림자가 QR이 되는 핵심 콘텐츠다.
+      // prefers-reduced-motion에서 0.08초로 덮어쓰던 코드는 운영체제/브라우저
+      // 설정에 따라 전체 연출을 사실상 jumpTo처럼 만들어 버렸으므로 사용하지 않는다.
+      duration: TRANSITION.duration,
       onChange: (t) => this.options.onViewChange?.(t),
     });
 
@@ -179,6 +179,13 @@ export class SceneEngine {
     this.scanGround = new THREE.Color(
       palette.scanGround || palette.ground || palette.light || '#DDDDDD'
     );
+    this.revealSky = palette.revealSky
+      ? new THREE.Color(palette.revealSky)
+      : null;
+    this.revealGround = palette.revealGround
+      ? new THREE.Color(palette.revealGround)
+      : null;
+    this.revealLighting = this.theme.getRevealLighting?.() || null;
 
     // 테마가 준 색 목록을 스캔 안전 대역으로 보정해 둔다.
     // 색상은 그대로 두고 명도만 끌어당기므로 3D 씬의 색감이 살아남는다.
@@ -245,7 +252,12 @@ export class SceneEngine {
       const light = createLight(spec);
       if (!light) continue;
       this.lightGroup.add(light);
-      this.lights.push({ light, baseIntensity: light.intensity, spec });
+      this.lights.push({
+        light,
+        baseIntensity: light.intensity,
+        baseColor: light.color.clone(),
+        spec,
+      });
 
       if (
         light.isDirectionalLight &&
@@ -955,6 +967,9 @@ export class SceneEngine {
 
   _applyMaterials(state) {
     const flat = state.flat;
+    // 밤 테마는 낮은 해가 들어오는 동안 밤색에서 새벽색으로 먼저 밝힌다.
+    // 최종 스캔 색으로 바뀌는 flat과 별개라 그림자가 움직이는 중에도 보인다.
+    const dawn = this.revealSky ? state.sunContrast : 0;
 
     // 블록 albedo 는 instanceColor 가 셀 단위로 다루므로 여기서는 발광만 끈다.
     // (스캔 뷰에서 발광이 남으면 셀별 색이 씻겨 대비가 흐려진다)
@@ -969,6 +984,7 @@ export class SceneEngine {
     if (this.ground) {
       this.ground.material.color
         .copy(this.ground.baseColor)
+        .lerp(this.revealGround || this.ground.baseColor, dawn)
         .lerp(this.scanGround, flat);
       this.ground.material.emissive
         .copy(this.ground.baseEmissive)
@@ -976,11 +992,17 @@ export class SceneEngine {
     }
 
     if (this.scene.background) {
-      this._tmpColor.copy(this.baseBackground).lerp(this.scanGround, flat);
+      this._tmpColor
+        .copy(this.baseBackground)
+        .lerp(this.revealSky || this.baseBackground, dawn)
+        .lerp(this.scanGround, flat);
       this.scene.background.copy(this._tmpColor);
     }
 
     if (this.scene.fog && this.baseFog) {
+      this.scene.fog.color
+        .set(this.baseFog.color || this.baseBackground)
+        .lerp(this.revealSky || this.baseBackground, dawn);
       const release = 1 + state.fogRelease * 60;
       this.scene.fog.near = this.baseFog.near * release;
       this.scene.fog.far = this.baseFog.far * release;
@@ -993,10 +1015,16 @@ export class SceneEngine {
     // 그리고 해가 기운 동안에는 채움광(반구광·앰비언트)을 걷고 해를 세운다.
     // 채움이 강한 채로는 그림자맵을 켜도 그늘이 밝기 차이를 내지 못한다.
     const contrast = state.sunContrast;
-    for (const { light, baseIntensity } of this.lights || []) {
+    for (const { light, baseIntensity, baseColor } of this.lights || []) {
+      const sunTarget = this.revealLighting?.sun ?? 1.55;
+      const fillTarget = this.revealLighting?.fill ?? 0.2;
       const shaping =
-        light === this.sunLight ? lerp(1, 1.35, contrast) : lerp(1, 0.34, contrast);
+        light === this.sunLight
+          ? lerp(1, sunTarget, contrast)
+          : lerp(1, fillTarget, contrast);
       light.intensity = baseIntensity * shaping * (1 - flat);
+      light.color.copy(baseColor);
+      if (light === this.sunLight) light.color.lerp(WARM_SUN, contrast * 0.72);
     }
 
     // 엔진 소유의 스캔 조명 리그를 서서히 올린다.

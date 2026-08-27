@@ -36,6 +36,8 @@ const PALETTE = {
   ground: '#222A44',
   groundEmissive: '#080C18',
   sky: '#1B2440',
+  revealSky: '#7188AD', // 밤이 걷히는 도시의 블루아워
+  revealGround: '#56698E',
   accent: '#FFC46B',
 
   /* 탑다운 스캔 뷰 (대비 11.6:1) — 도면 위의 도시 */
@@ -86,6 +88,11 @@ export function getBlockGeometry(isDark) {
 /** 1인칭 탐험 중 보조 조명 세기 — 밤거리라 손전등 없이는 벽 사이가 캄캄하다 */
 export function getPlayerLight() {
   return 1.15;
+}
+
+/** 도시 전체가 새벽에 밝아지되 건물 그림자는 읽히도록 채움광을 제한한다. */
+export function getRevealLighting() {
+  return { sun: 2.25, fill: 0.86 };
 }
 
 /**
@@ -486,6 +493,7 @@ export default {
   placeLandmarks,
   getBackgroundSetup,
   getPlayerLight,
+  getRevealLighting,
   getCurvature,
   getHeightJitter,
   getColorVariation,

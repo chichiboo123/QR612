@@ -83,9 +83,9 @@ export const TRANSITION = {
    * 36도에서는 골목이 앞 블록에 가려 그림자가 안 보이므로, 해가 제일 낮은
    * 시점(0.2)에는 이미 절반쯤 올라와 있어야 그림자가 보이기 시작한다.
    */
-  camLiftEnd: 0.42,
+  camLiftEnd: 0.3,
   /** 관람석에서 정수리까지 마지막으로 올라가는 구간 */
-  camSettleStart: 0.74,
+  camSettleStart: 0.82,
 
   /* --- 해(그림자 리빌의 주인공) ---------------------------------- */
 
@@ -100,8 +100,10 @@ export const TRANSITION = {
   /** 마지막에 해가 서는 고도(도). 90도 = 그림자 길이 0 = 모듈 발자국 */
   sunElevationHigh: 90,
   /** 해가 기우는 구간 → 다시 떠오르는 구간 (두 값이 같아야 이어진다) */
-  sunDipEnd: 0.2,
-  sunRiseEnd: 0.8,
+  sunDipEnd: 0.18,
+  /** 가장 긴 그림자를 잠시 붙잡아, 사용자가 빛의 방향을 읽을 수 있게 한다. */
+  sunHoldEnd: 0.36,
+  sunRiseEnd: 0.84,
   /**
    * 해의 방위각이 최종 카메라 방위(azimuth2d)로 도는 구간.
    * 마지막에 그림자가 카메라 반대편으로 눕기 때문에 블록 뒤로 깨끗이 접힌다.
@@ -124,23 +126,23 @@ export const TRANSITION = {
    * 그림자가 이미 발자국으로 수렴한 뒤에 시작해야 "그림자와 블록이 만나
    * 하나가 된다" 로 읽힌다.
    */
-  sinkStart: 0.56,
-  sinkEnd: 0.96,
+  sinkStart: 0.68,
+  sinkEnd: 0.97,
 
   /**
    * 큰 장식(나무·화산·우물 등) 페이드아웃 구간.
    * 긴 그림자를 드리우는 동안은 남아 있어야 하므로 해가 떠오른 뒤에 사라진다.
    */
-  decorFadeStart: 0.4,
-  decorFadeEnd: 0.74,
+  decorFadeStart: 0.58,
+  decorFadeEnd: 0.84,
 
   /** 테마 색상 → 스캔 색상으로 수렴하는 구간 */
-  flattenStart: 0.58,
-  flattenEnd: 0.94,
+  flattenStart: 0.7,
+  flattenEnd: 0.96,
 
   /** 블록 XZ 스케일이 1.0 으로 닫히는 구간 */
-  tightenStart: 0.5,
-  tightenEnd: 0.92,
+  tightenStart: 0.64,
+  tightenEnd: 0.94,
 
   /**
    * 구면 곡률(B612)이 평면으로 펴지는 구간.
@@ -155,11 +157,11 @@ export const TRANSITION = {
    * 아래에 깔린 테마 블록도 같은 스캔 색상 · 같은 조명으로 수렴하므로
    * 교체되는 순간이 눈에 띄지 않는다.
    */
-  scanOverlayStart: 0.9,
+  scanOverlayStart: 0.94,
   scanOverlayEnd: 1,
 
   /** 전환 소요 시간(초) — 그림자가 훑고 지나가는 시간이 필요하다 */
-  duration: 2.1,
+  duration: 5.6,
 };
 
 /** from 에서 to 로 갈 때 360도를 넘지 않는 최단 경로의 목표각 */
@@ -292,7 +294,9 @@ export function computeTransitionState(progress, ctx) {
           TRANSITION.sunElevationLow,
           easeInOutCubic(p / TRANSITION.sunDipEnd)
         )
-      : lerp(
+      : p <= TRANSITION.sunHoldEnd
+        ? TRANSITION.sunElevationLow
+        : lerp(
           TRANSITION.sunElevationLow,
           TRANSITION.sunElevationHigh,
           // 그림자 길이는 1/tan(고도) 라 낮은 각도에서 급격히 변한다.
@@ -301,8 +305,8 @@ export function computeTransitionState(progress, ctx) {
           // 속도를 눈에 고르게 만든다.
           Math.pow(
             clamp(
-              (p - TRANSITION.sunDipEnd) /
-                (TRANSITION.sunRiseEnd - TRANSITION.sunDipEnd)
+              (p - TRANSITION.sunHoldEnd) /
+                (TRANSITION.sunRiseEnd - TRANSITION.sunHoldEnd)
             ),
             1.7
           )
@@ -372,7 +376,8 @@ export function computeTransitionState(progress, ctx) {
   // 그림자맵을 켜도 그늘이 거의 밝기 차이를 내지 못한다. 해가 기울수록
   // 대비가 깊어지는 건 실제 저녁빛의 성질이기도 하다.
   const sunContrast =
-    smoothstep(0, 0.28, p) * (1 - smoothstep(0.7, 0.92, p));
+    smoothstep(0.03, TRANSITION.sunDipEnd, p) *
+    (1 - smoothstep(0.8, 0.95, p));
 
   const bend =
     curvature *

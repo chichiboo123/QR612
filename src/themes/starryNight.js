@@ -39,6 +39,8 @@ const PALETTE = {
   ground: '#22336B',
   groundEmissive: '#0A1130',
   sky: '#263A79', // 밝힌 밤하늘
+  revealSky: '#7896C9', // 해가 들기 시작한 푸른 새벽
+  revealGround: '#667DB2',
   accent: '#FFD972',
 
   /* 탑다운 스캔 뷰 (대비 12.4:1) — 달빛 종이 위의 인디고 */
@@ -74,6 +76,11 @@ export function getBlockGeometry(isDark) {
 /** 1인칭 탐험 중 보조 조명 세기 — 밤하늘 아래는 발밑이 잘 안 보인다 */
 export function getPlayerLight() {
   return 0.9;
+}
+
+/** QR 리빌에서는 달빛이 새벽빛으로 바뀌며 그림자를 함께 보여 준다. */
+export function getRevealLighting() {
+  return { sun: 2.15, fill: 0.92 };
 }
 
 /**
@@ -317,6 +324,7 @@ export default {
   placeLandmarks,
   getBackgroundSetup,
   getPlayerLight,
+  getRevealLighting,
   getCurvature,
   buildDecoration,
 };

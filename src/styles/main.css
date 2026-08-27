@@ -150,6 +150,19 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
+  width: fit-content;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--border-radius-md);
+  transition: opacity 0.2s;
+}
+
+.app-header__brand:hover {
+  opacity: 0.72;
 }
 
 .app-header__mark {
@@ -586,6 +599,64 @@ body {
 .stage__canvas {
   position: absolute;
   inset: 0;
+}
+
+/*
+  실제 3D 태양의 이동과 같은 5.6초 호흡으로 지나가는 렌즈 워시다. 단순한 화면
+  페이드가 아니라, 좌상단의 작은 햇살이 장면을 천천히 훑은 뒤 QR 위에서
+  사라져 캔버스 안의 길어진 그림자와 수축하는 그림자를 더 쉽게 읽게 한다.
+*/
+.stage__sun-wash {
+  position: absolute;
+  z-index: 1;
+  inset: -20%;
+  pointer-events: none;
+  opacity: 0;
+  mix-blend-mode: screen;
+  background:
+    radial-gradient(circle at 18% 22%, rgba(255, 244, 196, 0.86) 0 3%, rgba(255, 190, 91, 0.28) 13%, transparent 36%),
+    linear-gradient(118deg, transparent 20%, rgba(255, 218, 146, 0.2) 43%, transparent 66%);
+}
+
+.stage[data-view='scan'] .stage__sun-wash {
+  animation: sunlight-reveal 5.6s cubic-bezier(0.42, 0, 0.2, 1) both;
+}
+
+.stage__reveal-copy {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  bottom: 9%;
+  transform: translate(-50%, 10px);
+  width: max-content;
+  max-width: 80%;
+  color: rgba(255, 255, 255, 0.96);
+  font-size: clamp(0.78rem, 2.4vw, 1rem);
+  font-weight: 650;
+  line-height: 1.55;
+  letter-spacing: 0.04em;
+  text-align: center;
+  text-shadow: 0 2px 14px rgba(25, 16, 8, 0.72);
+  pointer-events: none;
+  opacity: 0;
+}
+
+.stage[data-view='scan'] .stage__reveal-copy {
+  animation: reveal-copy 5.6s ease both;
+}
+
+@keyframes sunlight-reveal {
+  0% { opacity: 0; transform: translate3d(-8%, 5%, 0) scale(0.92); }
+  18% { opacity: 0.78; }
+  38% { opacity: 0.58; transform: translate3d(0, 0, 0) scale(1); }
+  72% { opacity: 0.22; }
+  91%, 100% { opacity: 0; transform: translate3d(7%, -5%, 0) scale(1.08); }
+}
+
+@keyframes reveal-copy {
+  0%, 12% { opacity: 0; transform: translate(-50%, 10px); }
+  22%, 62% { opacity: 0.92; transform: translate(-50%, 0); }
+  78%, 100% { opacity: 0; transform: translate(-50%, -6px); }
 }
 
 .stage__canvas canvas,
@@ -1181,7 +1252,11 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  * {
+  /*
+    일반 UI 모션은 줄이되, QR이 만들어지는 과정을 설명하는 두 레이어는 제외한다.
+    이전의 전역 규칙은 sunlight-reveal까지 0.01ms로 줄여 3D 전환과 어긋나게 했다.
+  */
+  *:not(.stage__sun-wash):not(.stage__reveal-copy) {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
