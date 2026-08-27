@@ -40,6 +40,7 @@ import {
 
 const UP = new THREE.Vector3(0, 1, 0);
 const BLACK = new THREE.Color(0x000000);
+const WARM_SUN = new THREE.Color(0xffc56f);
 
 /** 블록 사이 z-fighting 방지를 위한 최소 단차 */
 const GROUND_OFFSET = 0.02;
@@ -245,7 +246,12 @@ export class SceneEngine {
       const light = createLight(spec);
       if (!light) continue;
       this.lightGroup.add(light);
-      this.lights.push({ light, baseIntensity: light.intensity, spec });
+      this.lights.push({
+        light,
+        baseIntensity: light.intensity,
+        baseColor: light.color.clone(),
+        spec,
+      });
 
       if (
         light.isDirectionalLight &&
@@ -993,10 +999,12 @@ export class SceneEngine {
     // 그리고 해가 기운 동안에는 채움광(반구광·앰비언트)을 걷고 해를 세운다.
     // 채움이 강한 채로는 그림자맵을 켜도 그늘이 밝기 차이를 내지 못한다.
     const contrast = state.sunContrast;
-    for (const { light, baseIntensity } of this.lights || []) {
+    for (const { light, baseIntensity, baseColor } of this.lights || []) {
       const shaping =
-        light === this.sunLight ? lerp(1, 1.35, contrast) : lerp(1, 0.34, contrast);
+        light === this.sunLight ? lerp(1, 1.55, contrast) : lerp(1, 0.2, contrast);
       light.intensity = baseIntensity * shaping * (1 - flat);
+      light.color.copy(baseColor);
+      if (light === this.sunLight) light.color.lerp(WARM_SUN, contrast * 0.72);
     }
 
     // 엔진 소유의 스캔 조명 리그를 서서히 올린다.
