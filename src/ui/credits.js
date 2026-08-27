@@ -28,7 +28,7 @@ export function createCredits() {
   toggle.setAttribute('aria-expanded', 'false');
   toggle.innerHTML = `
     <span class="material-icons-outlined" aria-hidden="true">lightbulb</span>
-    이 프로젝트가 빚진 것들
+    Thanks to
   `;
 
   const panel = document.createElement('div');

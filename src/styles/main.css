@@ -150,6 +150,19 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
+  width: fit-content;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--border-radius-md);
+  transition: opacity 0.2s;
+}
+
+.app-header__brand:hover {
+  opacity: 0.72;
 }
 
 .app-header__mark {

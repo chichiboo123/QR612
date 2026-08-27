@@ -298,7 +298,13 @@ function applyTheme(themeId) {
   if (!engine || !state.qr) return;
   // 테마를 바꾸면 지형 자체가 바뀌므로 탐험을 끝내고 다시 들어가게 한다
   if (engine.isExploring) engine.exitExplorer();
-  engine.setTheme(getTheme(themeId));
+  const theme = getTheme(themeId);
+  engine.setTheme(theme);
+  // 스캔 뷰에서 테마를 바꾸면 새 풍경이 보이지 않아 선택이 실패한 것처럼
+  // 느껴진다. 새 테마의 3D 장면으로 돌아가 배지와 안내도 즉시 동기화한다.
+  engine.setProgress(0, { animate: false });
+  updateViewLabels(0);
+  setActionMessage(`${theme.label} 테마를 적용했습니다.`, 'success');
 }
 
 /** 3D/2D 상태에 맞춰 버튼·배지·안내 문구를 갱신한다. */
@@ -392,19 +398,23 @@ function createHeader() {
   header.className = 'app-header';
   header.innerHTML = `
     <div class="app-header__inner">
-      <div class="app-header__brand">
+      <button class="app-header__brand" type="button" title="QR612 처음 화면으로 초기화" aria-label="QR612 처음 화면으로 초기화">
         <span class="app-header__mark"><span class="material-icons-outlined" aria-hidden="true">rocket_launch</span></span>
         <div>
           <p class="app-header__eyebrow">YOUR LINK, A LITTLE PLANET</p>
           <h1 class="app-header__title">QR612</h1>
         </div>
-      </div>
+      </button>
       <span class="privacy-badge">
         <span class="material-icons-outlined" aria-hidden="true">verified_user</span>
         브라우저에서만 처리
       </span>
     </div>
   `;
+  header.querySelector('.app-header__brand').addEventListener('click', () => {
+    // 공유 파라미터와 현재 입력까지 확실히 비우기 위해 앱의 기본 주소로 이동한다.
+    window.location.assign(`${window.location.origin}${window.location.pathname}`);
+  });
   return header;
 }
 

@@ -179,6 +179,13 @@ export class SceneEngine {
     this.scanGround = new THREE.Color(
       palette.scanGround || palette.ground || palette.light || '#DDDDDD'
     );
+    this.revealSky = palette.revealSky
+      ? new THREE.Color(palette.revealSky)
+      : null;
+    this.revealGround = palette.revealGround
+      ? new THREE.Color(palette.revealGround)
+      : null;
+    this.revealLighting = this.theme.getRevealLighting?.() || null;
 
     // 테마가 준 색 목록을 스캔 안전 대역으로 보정해 둔다.
     // 색상은 그대로 두고 명도만 끌어당기므로 3D 씬의 색감이 살아남는다.
@@ -960,6 +967,9 @@ export class SceneEngine {
 
   _applyMaterials(state) {
     const flat = state.flat;
+    // 밤 테마는 낮은 해가 들어오는 동안 밤색에서 새벽색으로 먼저 밝힌다.
+    // 최종 스캔 색으로 바뀌는 flat과 별개라 그림자가 움직이는 중에도 보인다.
+    const dawn = this.revealSky ? state.sunContrast : 0;
 
     // 블록 albedo 는 instanceColor 가 셀 단위로 다루므로 여기서는 발광만 끈다.
     // (스캔 뷰에서 발광이 남으면 셀별 색이 씻겨 대비가 흐려진다)
@@ -974,6 +984,7 @@ export class SceneEngine {
     if (this.ground) {
       this.ground.material.color
         .copy(this.ground.baseColor)
+        .lerp(this.revealGround || this.ground.baseColor, dawn)
         .lerp(this.scanGround, flat);
       this.ground.material.emissive
         .copy(this.ground.baseEmissive)
@@ -981,11 +992,17 @@ export class SceneEngine {
     }
 
     if (this.scene.background) {
-      this._tmpColor.copy(this.baseBackground).lerp(this.scanGround, flat);
+      this._tmpColor
+        .copy(this.baseBackground)
+        .lerp(this.revealSky || this.baseBackground, dawn)
+        .lerp(this.scanGround, flat);
       this.scene.background.copy(this._tmpColor);
     }
 
     if (this.scene.fog && this.baseFog) {
+      this.scene.fog.color
+        .set(this.baseFog.color || this.baseBackground)
+        .lerp(this.revealSky || this.baseBackground, dawn);
       const release = 1 + state.fogRelease * 60;
       this.scene.fog.near = this.baseFog.near * release;
       this.scene.fog.far = this.baseFog.far * release;
@@ -999,8 +1016,12 @@ export class SceneEngine {
     // 채움이 강한 채로는 그림자맵을 켜도 그늘이 밝기 차이를 내지 못한다.
     const contrast = state.sunContrast;
     for (const { light, baseIntensity, baseColor } of this.lights || []) {
+      const sunTarget = this.revealLighting?.sun ?? 1.55;
+      const fillTarget = this.revealLighting?.fill ?? 0.2;
       const shaping =
-        light === this.sunLight ? lerp(1, 1.55, contrast) : lerp(1, 0.2, contrast);
+        light === this.sunLight
+          ? lerp(1, sunTarget, contrast)
+          : lerp(1, fillTarget, contrast);
       light.intensity = baseIntensity * shaping * (1 - flat);
       light.color.copy(baseColor);
       if (light === this.sunLight) light.color.lerp(WARM_SUN, contrast * 0.72);

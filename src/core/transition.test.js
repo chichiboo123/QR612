@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { TRANSITION, TransitionController } from './transition.js';
+import { getTheme } from '../themes/index.js';
 
 test('QR reveal cannot collapse into a 0.1 second jump', () => {
   const transition = new TransitionController();
@@ -27,4 +28,17 @@ test('default reveal uses the complete cinematic duration', () => {
   assert.ok(elapsed >= TRANSITION.duration);
   assert.ok(elapsed < TRANSITION.duration + 1 / 30);
   assert.equal(transition.progress, 1);
+});
+
+test('night themes provide a brighter dawn reveal', () => {
+  for (const id of ['starry-night', 'city-night']) {
+    const theme = getTheme(id);
+    const palette = theme.getPalette();
+    const lighting = theme.getRevealLighting();
+
+    assert.ok(palette.revealSky);
+    assert.ok(palette.revealGround);
+    assert.ok(lighting.sun > 1);
+    assert.ok(lighting.fill > 0.2);
+  }
 });
