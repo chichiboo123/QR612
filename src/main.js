@@ -70,6 +70,8 @@ stage.className = 'stage';
 stage.dataset.ready = 'false';
 stage.innerHTML = `
   <div class="stage__canvas"></div>
+  <div class="stage__sun-wash" aria-hidden="true"></div>
+  <p class="stage__reveal-copy" aria-hidden="true">빛이 머문 자리에서<br />그림자가 QR이 됩니다</p>
   <div class="stage__empty">
     <span class="material-icons-outlined" aria-hidden="true">travel_explore</span>
     <p>주소를 입력하고 <strong>생성하기</strong>를 누르면<br />어린왕자의 장면이 나타납니다.</p>
