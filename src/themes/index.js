@@ -23,8 +23,17 @@ import desertFox from './desertFox.js';
 import rose from './rose.js';
 import cityNight from './cityNight.js';
 import forestRest from './forestRest.js';
+import gamjaMarket from './gamjaMarket.js';
 
-export const THEMES = [b612, starryNight, desertFox, rose, cityNight, forestRest];
+export const THEMES = [
+  b612,
+  starryNight,
+  desertFox,
+  rose,
+  cityNight,
+  forestRest,
+  gamjaMarket,
+];
 
 export const DEFAULT_THEME_ID = b612.id;
 
@@ -33,4 +42,12 @@ export function getTheme(id) {
   return THEMES.find((t) => t.id === id) || THEMES[0];
 }
 
-export { b612, starryNight, desertFox, rose, cityNight, forestRest };
+export {
+  b612,
+  starryNight,
+  desertFox,
+  rose,
+  cityNight,
+  forestRest,
+  gamjaMarket,
+};
