@@ -182,3 +182,129 @@ export function group(...children) {
   for (const child of children) if (child) g.add(child);
   return g;
 }
+
+/**
+ * 걸어서 닿을 수 있는 칸만 모은다. 각 칸의 "차수"(상하좌우로 이어지는 길의 수)도 함께 준다.
+ *
+ * pickWalkableCells() 는 light 모듈인지만 보고 연결성은 보지 않는다. 그래서 사방이
+ * 막힌 골목 주머니가 뽑히고, 그 자리의 랜드마크는 영영 발견할 수 없다.
+ * (실측: 25×25 에서 6곳 중 3곳이 고립된 자리였다)
+ *
+ * 걷기 규칙은 Explorer 와 같다.
+ *   - dark 모듈은 stepHeight 를 훨씬 넘으므로 언제나 벽으로 본다(보수적 판정).
+ *   - light 모듈은 언제나 걸어 오를 수 있다.
+ *   - _groundAt 이 플레이어 사각형 네 모서리의 최댓값을 쓰므로 대각선으로 모서리를
+ *     빠져나갈 수 없다. 따라서 상하좌우 4방향 연결만 센다.
+ *
+ * @param {number} matrixSize
+ * @param {boolean[][]} matrix
+ * @returns {{x:number, z:number, col:number, row:number, degree:number}[]}
+ */
+export function collectConnectedCells(matrixSize, matrix) {
+  if (!matrix) return [];
+
+  const N = matrixSize;
+  const at = (row, col) => row * N + col;
+  const reached = new Uint8Array(N * N);
+  const queue = [];
+
+  // 그리드 바깥 바닥(높이 0)에서 걸어 들어올 수 있는 테두리 길이 출발점이다
+  for (let i = 0; i < N; i += 1) {
+    for (const [row, col] of [[0, i], [N - 1, i], [i, 0], [i, N - 1]]) {
+      if (matrix[row][col] || reached[at(row, col)]) continue;
+      reached[at(row, col)] = 1;
+      queue.push(row, col);
+    }
+  }
+
+  const STEPS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  while (queue.length) {
+    const col = queue.pop();
+    const row = queue.pop();
+    for (const [dr, dc] of STEPS) {
+      const nr = row + dr;
+      const nc = col + dc;
+      if (nr < 0 || nc < 0 || nr >= N || nc >= N) continue;
+      if (matrix[nr][nc] || reached[at(nr, nc)]) continue;
+      reached[at(nr, nc)] = 1;
+      queue.push(nr, nc);
+    }
+  }
+
+  // 가장자리 2칸은 파인더 패턴 주변이라 배치에서 제외한다 (pickWalkableCells 와 동일)
+  const cells = [];
+  for (let row = 2; row < N - 2; row += 1) {
+    for (let col = 2; col < N - 2; col += 1) {
+      if (matrix[row][col] || !reached[at(row, col)]) continue;
+      let degree = 0;
+      for (const [dr, dc] of STEPS) {
+        const nr = row + dr;
+        const nc = col + dc;
+        if (nr < 0 || nc < 0 || nr >= N || nc >= N) continue;
+        if (!matrix[nr][nc]) degree += 1;
+      }
+      cells.push({
+        x: col - (N - 1) / 2,
+        z: row - (N - 1) / 2,
+        col,
+        row,
+        degree,
+      });
+    }
+  }
+  return cells;
+}
+
+/**
+ * 실제로 걸어서 닿는 칸 중에서 서로 떨어진 자리를 고른다.
+ * pickWalkableCells() 의 연결성 보장 버전.
+ *
+ * @param {number} matrixSize
+ * @param {boolean[][]} matrix
+ * @param {number} count
+ * @param {number} [seed]
+ * @param {object} [options]
+ * @param {number} [options.minDegree] 이 수 이상의 길이 갈라지는 칸만 (3 이상 = 교차로)
+ * @param {{x:number,z:number}[]} [options.exclude] 이미 쓴 자리(가까이 두지 않는다)
+ * @returns {{x:number, z:number, degree:number}[]}
+ */
+export function pickConnectedCells(
+  matrixSize,
+  matrix,
+  count,
+  seed = 1,
+  options = {}
+) {
+  const { minDegree = 0, exclude = [] } = options;
+
+  let candidates = collectConnectedCells(matrixSize, matrix);
+  if (minDegree > 0) {
+    const junctions = candidates.filter((c) => c.degree >= minDegree);
+    // 교차로가 모자라면 조건을 낮춰서라도 자리를 채운다
+    if (junctions.length >= count) candidates = junctions;
+  }
+  if (!candidates.length) return [];
+
+  const rand = makeRandom(matrixSize * 911 + seed);
+  const chosen = [];
+  let minGap = Math.max(matrixSize / 5, 4);
+
+  // 자리가 모자라면 간격을 좁혀 가며 반드시 count 개를 채운다
+  while (chosen.length < count && minGap >= 1) {
+    let placed = false;
+    for (let attempt = 0; attempt < 400; attempt += 1) {
+      const candidate = candidates[Math.floor(rand() * candidates.length)];
+      if (!candidate) break;
+      const tooClose = [...chosen, ...exclude].some(
+        (c) => Math.hypot(c.x - candidate.x, c.z - candidate.z) < minGap
+      );
+      if (tooClose) continue;
+      chosen.push(candidate);
+      placed = true;
+      break;
+    }
+    if (!placed) minGap -= 1;
+  }
+
+  return chosen;
+}

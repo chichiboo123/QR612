@@ -14,6 +14,8 @@
  *   getGroundDisplacement()  → 장면 바닥의 절차적 높이 변형(사구 등)
  *   buildDecoration(spec)    → THREE.Object3D (placeDecorations 스펙을 실제 오브젝트로)
  *   placeLandmarks(size, m)  → 1인칭 탐험 중 발견하는 지점 배열
+ *     (_shared.js 의 pickConnectedCells 를 쓰면 실제로 걸어서 닿는 자리만
+ *      고른다. pickWalkableCells 는 연결성을 보장하지 않는다.)
  *   update(dt, ctx)          → 프레임마다 호출 (예: 도시의 자동차, 연못 물결)
  */
 
@@ -24,6 +26,7 @@ import rose from './rose.js';
 import cityNight from './cityNight.js';
 import forestRest from './forestRest.js';
 import gamjaMarket from './gamjaMarket.js';
+import moreumpyoExpedition from './moreumpyoExpedition.js';
 
 export const THEMES = [
   b612,
@@ -33,6 +36,7 @@ export const THEMES = [
   cityNight,
   forestRest,
   gamjaMarket,
+  moreumpyoExpedition,
 ];
 
 export const DEFAULT_THEME_ID = b612.id;
@@ -50,4 +54,5 @@ export {
   cityNight,
   forestRest,
   gamjaMarket,
+  moreumpyoExpedition,
 };
