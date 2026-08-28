@@ -6,9 +6,20 @@
  * '감자' 는 감(정)·(상)자 — 감정상자다. 켜면 그 안에 담긴 감정이 잠시 흘러나오고,
  * 시간이 지나면 빛이 꺼진다. 이 시장에서 감정은 상품이고, 추억은 화폐다.
  *
+ * 비주얼 콘셉트: 「낮의 도시」 + 「감자마켓 앱 속의 세상」
+ *
+ * 처음에는 따뜻한 장터 색으로 만들었더니 '사막과 여우' 와 주조색이 거의 같아졌다
+ * (#E8A13A 대 #E8A35D). 그래서 팔레트를 통째로 뒤집었다. 시장 바닥의 모래색을
+ * 걷어내고, 한낮의 도시 블록과 앱 UI 의 흰 카드를 기본 언어로 삼는다.
+ *
  * 공간 해석
- *   dark 모듈 = 감정 진열대(매대). 위가 살짝 넓은 차양 실루엣으로 부스처럼 읽힌다.
- *   light 모듈 = 마켓 골목. 걸어서 올라설 수 있는 낮은 통로.
+ *   dark 모듈 = 감정 진열대 = 앱 카드가 세워진 시안빛 도시 블록.
+ *   light 모듈 = 마켓 골목 = 한낮의 밝은 보도.
+ *
+ * 색의 역할이 바뀌었다. 감자 골드는 더 이상 바탕이 아니라 액센트다.
+ * 차가운 도시 위에 놓인 금색이라 오히려 눈에 더 잘 띈다.
+ * 반대로 무료나눔 벤치와 추억 계열만 따뜻한 나무빛을 지킨다 — 화려한 거래의
+ * 세계는 서늘하고, 진짜 마음이 있는 자리는 따뜻하다.
  *
  * 외곽에는 이야기의 장면들이 각 방향으로 흩어져 있다.
  *   0°   메인 카운터(운영자 감자1·2·3의 부스 세 개)
@@ -38,26 +49,24 @@ export const meta = {
   id: 'gamja-market',
   label: '감자마켓',
   caption: '감정을 사고파는 마음의 시장',
-  swatch: ['#E8A13A', '#F4E3BC', '#78AF45'],
+  swatch: ['#5FB0C4', '#A8DCF7', '#FFC24D'],
 };
 
 const PALETTE = {
-  /* 3D 씬 */
-  dark: '#E8A13A', // 감정 진열대 — 감자 황금주황
-  darkEmissive: '#402208',
-  light: '#F4E3BC', // 마켓 골목 — 크림베이지
-  // 바닥은 매대보다 확실히 창백하게, 하늘은 조금 더 깊은 살구빛으로 둔다.
-  // 셋의 명도를 벌려 놓지 않으면 장면 전체가 주황 한 덩어리로 뭉개진다.
-  ground: '#F7EBD4',
-  groundEmissive: '#2A2114',
-  sky: '#F2D096', // 따뜻한 살구빛 앱 하늘
-  accent: '#FFD65A',
+  /* 3D 씬 — 한낮의 도시 블록과 앱 캔버스 */
+  dark: '#5FBBD1', // 감정 진열대 = 앱 카드가 세워진 시안빛 도시 블록
+  darkEmissive: '#12333D',
+  light: '#EDF3F7', // 마켓 골목 = 한낮의 밝은 보도
+  ground: '#DCE8F0', // 앱 캔버스
+  groundEmissive: '#141C24',
+  sky: '#6BC5EE', // 맑은 낮 하늘
+  accent: '#FFC24D', // 감자 골드 — 이제 바탕이 아니라 액센트
 
-  /* 탑다운 스캔 뷰 (대비 10.2:1) — 크림 종이 위의 구운 감자색 */
-  scanDark: '#5E3210',
-  scanLight: '#FBF2DE',
-  scanGround: '#EBD4A6',
-  scanShadow: '#A8763F',
+  /* 탑다운 스캔 뷰 (대비 10.2:1) — 앱 화면 위의 도시 도면 */
+  scanDark: '#164A55',
+  scanLight: '#F4F9FC',
+  scanGround: '#C6DAE8',
+  scanShadow: '#5E8598',
 };
 
 /**
@@ -67,21 +76,34 @@ const PALETTE = {
  */
 const EMOTION = {
   joy: '#FFD65A', // 기쁨
-  flutter: '#F29BB2', // 설렘
-  sorry: '#6FAEDB', // 미안함
-  confidence: '#E8A13A', // 자신감
-  empathy: '#79C8B3', // 공감
-  lonely: '#7E86C4', // 외로움
-  envy: '#A8C24B', // 질투
+  flutter: '#F98FB0', // 설렘
+  sorry: '#4E93D6', // 미안함
+  confidence: '#FF9F43', // 자신감
+  empathy: '#4FC4A8', // 공감
+  lonely: '#7C7FD0', // 외로움
+  envy: '#9BD24F', // 질투
 };
 
 const EMOTION_KEYS = Object.keys(EMOTION);
 
-const SPROUT_GREEN = '#78AF45';
-const MEMORY_GOLD = '#FFD65A';
-const SUSPICIOUS_RED = '#D95B43';
-const POTATO_SKIN = '#D9A05B';
-const CRATE_WOOD = '#C58C4E';
+const SPROUT_GREEN = '#6FC26A'; // 도시의 초록 — 하늘색 위에서 선명하게
+const MEMORY_GOLD = '#FFD65A'; // 추억 조각
+const SUSPICIOUS_RED = '#E0574F'; // 수상한 노점 — 서늘한 도시 속 유일한 붉은 구역
+const POTATO_SKIN = '#E8B057'; // 감자 = 액센트 골드
+const CRATE_WOOD = '#A9C4D4'; // 마켓 물류 상자 — 앱 배송함 같은 쿨 그레이블루
+
+/* 앱 UI 자재 — 흰 카드와 쿨 그레이 프레임 */
+const UI_CARD = '#F7FAFC'; // 앱 카드 표면
+const UI_PANEL = '#DCE7EF'; // 카드 안쪽 패널
+const UI_FRAME = '#9FB6C6'; // 지지대·프레임
+const UI_FRAME_DEEP = '#7E93A4';
+const UI_DEVICE = '#3E4A56'; // 기기 몸체
+const UI_SCREEN = '#DCF0FF'; // 화면 빛
+
+/* 따뜻한 자재 — 추억과 무료나눔에만 쓴다 */
+const WARM_WOOD = '#C9A06B';
+const WARM_WOOD_DEEP = '#9C7A4E';
+const WARM_CLOTH = '#D6A45E';
 
 export function getPalette() {
   return { ...PALETTE };
@@ -97,9 +119,9 @@ export function getHeightJitter() {
   return 0.18;
 }
 
-/** 1인칭에서 부스끼리 맞붙었을 때 경계가 보이도록 */
+/** 도시 블록마다 밝기를 달리해 서로 다른 건물처럼 보이게 한다 */
 export function getColorVariation() {
-  return 0.16;
+  return 0.22;
 }
 
 /** 부스 사이에 골목 틈이 남도록 살짝 벌린다 */
@@ -108,7 +130,7 @@ export function getBlockSpread() {
 }
 
 /**
- * dark 는 위가 넓은 차양형 매대, light 는 낮고 평평한 골목.
+ * dark 는 위로 살짝 좁아지는 도시 블록(세워 둔 앱 카드), light 는 낮은 보도.
  *
  * 높이는 Explorer 규칙(stepHeight 0.58, 제자리 점프 도달 약 1.28)에 맞춰
  * 정했다. 골목 0.42 는 바깥 바닥에서 걸어 들어올 수 있고, 매대 2.6 은
@@ -117,23 +139,23 @@ export function getBlockSpread() {
 export function getBlockGeometry(isDark) {
   if (isDark) {
     return {
-      geometry: createStallGeometry(1.12),
+      geometry: createStallGeometry(0.94),
       material: flatMaterial(PALETTE.dark, { emissive: PALETTE.darkEmissive }),
       height: 2.6,
     };
   }
   return {
-    // 골목은 정확한 정사각 타일 — 발밑이 매끈해야 걸어 다닐 수 있다
+    // 보도는 정확한 정사각 타일 — 발밑이 매끈해야 걸어 다닐 수 있다
     geometry: new THREE.BoxGeometry(1, 1, 1),
-    material: flatMaterial(PALETTE.light, { emissive: '#2B2416' }),
+    material: flatMaterial(PALETTE.light, { emissive: '#1A2630' }),
     height: 0.42,
   };
 }
 
 /**
- * 매대 차양 실루엣.
- * 윗면만 넓혀 부스 지붕처럼 만든다. 엔진이 지오메트리를 밑면 1×1 로
- * 정규화하므로 실제로는 아랫단이 좁아지고, 발치에 골목 틈이 생긴다.
+ * 도시 블록 실루엣.
+ * 윗면을 살짝 좁혀 건물이 위로 가늘어지는 배흘림을 준다. 엔진이 지오메트리를
+ * 밑면 1×1 로 정규화하므로 바닥은 정확히 맞물리고 위쪽만 가늘어진다.
  */
 function createStallGeometry(topScale) {
   const geometry = new THREE.BoxGeometry(1, 1, 1);
@@ -156,35 +178,55 @@ export function getPlayerLight() {
 
 /**
  * 탑다운 스캔 뷰의 모듈 색 후보.
- * 매대의 감자 황금주황과 구운 감자 갈색을 주조로, 새싹 초록과 특가 노점의
- * 붉은색을 드문 포인트로 섞는다.
+ * 한낮의 도시 블록이 띠는 시안틸을 주조로 쓴다.
  *
  * 엔진이 이 색들의 명도만 스캔 안전 대역으로 끌어당기고 색상은 그대로 둔다.
  * 덕분에 QR 이 단색 검정이 아니라 3D 씬과 같은 색 계열의 모자이크가 된다.
  */
 export function getScanColors() {
   return {
-    dark: ['#E8A13A', '#E8A13A', '#D9902F', '#C07A28', '#78AF45', '#D95B43'],
-    light: ['#F4E3BC', '#F4E3BC', '#F7EBCE', '#EFD9AD', '#FFD65A'],
+    // 도시 블록의 시안틸이 주조. 감자 골드와 노점 레드는 드문 포인트로만 섞어
+    // 최종 QR 이 '도시의 밤'의 남색 도면이나 사막의 갈색과 겹치지 않게 한다.
+    dark: ['#3E8E9E', '#3E8E9E', '#357F92', '#4A6FA5', '#E8A13A', '#D9614E'],
+    light: ['#EDF3F7', '#EDF3F7', '#E4ECF5', '#F5F9FC', '#DCE8F2'],
   };
 }
 
 export function getBackgroundSetup() {
+  const rand = makeRandom(20250828);
+  const clouds = [];
+  for (let i = 0; i < 7; i += 1) {
+    const angle = (Math.PI * 2 * i) / 7 + rand() * 0.6;
+    const radius = 150 + rand() * 90;
+    clouds.push({
+      type: 'dayCloud',
+      position: [
+        Math.sin(angle) * radius,
+        44 + rand() * 34,
+        Math.cos(angle) * radius,
+      ],
+      scale: 8 + rand() * 7,
+    });
+  }
+
   return {
     background: PALETTE.sky,
-    // 따뜻하고 아주 은은하게. 시장 끝이 흐려 보일 만큼만 멀리 건다.
-    fog: { color: '#F4D6A4', near: 82, far: 205 },
+    // 한낮이라 안개는 아주 옅게, 멀리만 건다
+    fog: { color: '#A8DDF4', near: 88, far: 215 },
     lights: [
-      { type: 'hemisphere', sky: '#FFF4DE', ground: '#C79155', intensity: 2.0 },
+      { type: 'hemisphere', sky: '#EAF7FF', ground: '#8FA6B8', intensity: 2.0 },
       {
         type: 'directional',
-        color: '#FFF1CF',
-        intensity: 2.2,
-        position: [28, 46, 30],
+        color: '#FFF8E4',
+        intensity: 2.35,
+        position: [30, 50, 26],
       },
-      { type: 'ambient', color: '#FFE7C4', intensity: 0.85 },
+      { type: 'ambient', color: '#D6EAF6', intensity: 0.9 },
     ],
-    objects: [{ type: 'marketSun', position: [-70, 34, -112], scale: 9 }],
+    objects: [
+      ...clouds,
+      { type: 'marketSun', position: [-64, 40, -118], scale: 9 },
+    ],
   };
 }
 
@@ -268,6 +310,70 @@ export function placeDecorations(matrixSize, matrix) {
     rotation: [0, facingCenter(320) - 0.5, 0],
     scale: 1.25,
   });
+
+  /* --- 앱 속 세상: 공중에 떠 있는 UI ------------------------------- */
+  //
+  // 이 시장이 스마트폰 앱 안이라는 것을 형태로만 알려 준다.
+  // QR 판 위로는 절대 올리지 않고, 바깥 링 위에 띄운다.
+
+  const cardEmotions = ['flutter', 'confidence', 'lonely'];
+  cardEmotions.forEach((emotion, i) => {
+    const angle = 40 + i * 128;
+    const [ux, uz] = squareRingPoint(matrixSize, angle, 3.4);
+    specs.push({
+      type: 'uiCard',
+      position: [ux, 2.5 + i * 0.55, uz],
+      rotation: [0, facingCenter(angle), 0],
+      scale: 1.15,
+      emotion,
+    });
+  });
+
+  for (const angle of [64, 244]) {
+    const [tx, tz] = squareRingPoint(matrixSize, angle, 6.6);
+    specs.push({
+      type: 'toastPopup',
+      position: [tx, 3.3, tz],
+      rotation: [0, facingCenter(angle), 0],
+      scale: 1.05,
+    });
+  }
+
+  // 로딩 스피너 — 앱이 무언가를 불러오는 중
+  const [lx, lz] = squareRingPoint(matrixSize, 150, 4.2);
+  specs.push({
+    type: 'loadingRing',
+    position: [lx, 0, lz],
+    rotation: [0, facingCenter(150), 0],
+    scale: 1.2,
+  });
+
+  /* --- 낮의 도시: 횡단보도와 가로수 --------------------------------- */
+
+  // 판의 네 변 앞에 하나씩. 모서리(대각선)에 놓으면 줄무늬가 비스듬해져
+  // 횡단보도가 아니라 빗금처럼 보이므로, 변의 방향에 맞춰 각을 스냅한다.
+  for (const angle of [25, 115, 205, 295]) {
+    const [wx, wz] = squareRingPoint(matrixSize, angle, 3.2);
+    const edgeAngle = Math.round(angle / 90) * 90;
+    specs.push({
+      type: 'crosswalk',
+      position: [wx, 0, wz],
+      rotation: [0, (edgeAngle * Math.PI) / 180, 0],
+      scale: 1.3,
+      persistent: true,
+    });
+  }
+
+  for (let i = 0; i < 10; i += 1) {
+    const angle = (360 / 10) * i + 18 + rand() * 6;
+    const [tx, tz] = squareRingPoint(matrixSize, angle, 5.4 + rand() * 3.2);
+    specs.push({
+      type: 'streetTree',
+      position: [tx, 0, tz],
+      rotation: [0, rand() * Math.PI * 2, 0],
+      scale: 1.3 + rand() * 0.7,
+    });
+  }
 
   /* --- 낮은 풍경 (탑다운에서도 남는다) ------------------------------ */
   //
@@ -472,10 +578,11 @@ export function placeLandmarks(matrixSize, matrix) {
 /**
  * 아주 절제된 움직임만 둔다.
  *
- * 엔진은 theme.update 가 있으면 매 프레임 그림자맵을 다시 굽는다. 그래서
- * 움직이는 오브젝트를 10개 아래로 묶고, 프레임 안에서는 스칼라 연산과
- * 미리 만들어 둔 THREE.Color 의 제자리 보간만 쓴다(할당 0).
- * 감자의 빛, 시장 조명 같은 나머지는 전부 정적 emissive 로 처리했다.
+ * 엔진은 theme.update 가 있으면 매 프레임 그림자맵을 다시 굽는다. 그 비용은
+ * 훅의 존재 자체에서 오므로 오브젝트를 몇 개 움직이든 같다. 대신 프레임 안에서는
+ * 스칼라 연산과 미리 만들어 둔 THREE.Color 의 제자리 보간만 쓴다(할당 0).
+ * 움직이는 오브젝트는 15개 아래로 묶고, 감자의 빛이나 시장 조명처럼 정적
+ * emissive 로 대체할 수 있는 것은 전부 그렇게 처리했다.
  */
 export function update(dt, { elapsed, decorGroup, sceneryGroup }) {
   for (const obj of [...decorGroup.children, ...sceneryGroup.children]) {
@@ -516,9 +623,24 @@ export function update(dt, { elapsed, decorGroup, sceneryGroup }) {
         break;
       }
 
-      case 'shortsSpot': {
+      case 'shortsSpot':
+      case 'shortsStage': {
         // 링라이트가 촬영 중인 것처럼 숨 쉰다
         pulseGlow(obj.getObjectByName('ring-light'), elapsed, 1.4, 0.35);
+        break;
+      }
+
+      case 'loadingRing': {
+        // 앱이 무언가를 불러오는 중 — 아주 느린 스피너
+        const arc = obj.getObjectByName('spinner-arc');
+        if (arc) arc.rotation.z = -elapsed * 1.1;
+        break;
+      }
+
+      case 'uiCard': {
+        // 공중의 카드가 아주 조금 떠다닌다
+        const anchor = obj.userData.anchor;
+        if (anchor) obj.position.y = anchor.y + Math.sin(elapsed * 0.8 + anchor.x) * 0.12;
         break;
       }
 
@@ -597,6 +719,22 @@ export function buildDecoration(spec) {
       return buildDimmedCrate();
     case 'marketSun':
       return buildMarketSun();
+    case 'dayCloud':
+      return buildDayCloud();
+
+    /* 앱 속 세상 */
+    case 'uiCard':
+      return buildUiCard(spec);
+    case 'toastPopup':
+      return buildToastPopup();
+    case 'loadingRing':
+      return buildLoadingRing();
+
+    /* 낮의 도시 */
+    case 'crosswalk':
+      return buildCrosswalk();
+    case 'streetTree':
+      return buildStreetTree();
 
     /* 낮은 풍경 */
     case 'sceneryPotato':
@@ -663,7 +801,7 @@ export function buildLandmark(spec) {
 function buildEmotionPotato(emotionColor, options = {}) {
   const radius = options.radius ?? 0.34;
   const skinMat = flatMaterial(options.skin || POTATO_SKIN, {
-    emissive: options.dimmed ? '#1A1208' : '#3A2410',
+    emissive: options.dimmed ? '#1E242A' : '#3A2A12',
   });
 
   // 살짝 눌린 비대칭 실루엣 — 귀엽고 친근한 감자 모양
@@ -692,7 +830,7 @@ function buildEmotionPotato(emotionColor, options = {}) {
   } else {
     // 꺼진 감자 — 코어 자리에 회색 렌즈만 남는다
     parts.push(
-      blob(radius * 0.28, 0, flatMaterial('#8A7A66'), [
+      blob(radius * 0.28, 0, flatMaterial('#94A5B2'), [
         0,
         radius * 0.82,
         radius * 0.7,
@@ -701,7 +839,7 @@ function buildEmotionPotato(emotionColor, options = {}) {
   }
 
   // 새싹 — 감정이 아직 자라고 있다는 표시
-  const sproutMat = flatMaterial(options.dimmed ? '#6B7A55' : SPROUT_GREEN);
+  const sproutMat = flatMaterial(options.dimmed ? '#7E8C93' : SPROUT_GREEN);
   parts.push(
     cone(radius * 0.16, radius * 0.62, 4, sproutMat, [
       radius * 0.16,
@@ -730,10 +868,10 @@ function buildStallPotato(spec) {
 /** 매대 위의 감정 이름표 — 텍스트 대신 색 패널로 감정을 표시한다 */
 function buildStallSign(spec) {
   const color = EMOTION[spec.emotion] || EMOTION.empathy;
-  const postMat = flatMaterial('#B5793C');
+  const postMat = flatMaterial(UI_FRAME);
 
   const post = cylinder(0.035, 0.045, 0.5, 5, postMat, [0, 0.25, 0]);
-  const board = box(0.46, 0.26, 0.05, flatMaterial('#FBF2DE'), [0, 0.58, 0]);
+  const board = box(0.46, 0.26, 0.05, flatMaterial(UI_CARD), [0, 0.58, 0]);
   const tag = box(0.3, 0.09, 0.03, glowMaterial(color, { transparent: false }), [
     0,
     0.62,
@@ -762,7 +900,7 @@ function buildScenerySprout(spec) {
 
 function buildSprout() {
   const mat = flatMaterial(SPROUT_GREEN);
-  const soil = cylinder(0.12, 0.15, 0.08, 6, flatMaterial('#8A6A44'), [0, 0.04, 0]);
+  const soil = cylinder(0.12, 0.15, 0.08, 6, flatMaterial(UI_FRAME_DEEP), [0, 0.04, 0]);
   const stem = cylinder(0.02, 0.03, 0.24, 5, mat, [0, 0.2, 0]);
   const leafA = blob(0.11, 0, mat, [0.09, 0.31, 0]);
   leafA.scale.set(1.4, 0.32, 0.7);
@@ -792,7 +930,7 @@ function buildMemoryShard() {
 function buildCrate() {
   const woodMat = flatMaterial(CRATE_WOOD);
   const shell = box(0.52, 0.3, 0.4, woodMat, [0, 0.15, 0]);
-  const rim = box(0.56, 0.05, 0.44, flatMaterial('#A9703A'), [0, 0.31, 0]);
+  const rim = box(0.56, 0.05, 0.44, flatMaterial('#8FAABC'), [0, 0.31, 0]);
   const inner = group();
   for (const [ix, iz] of [
     [-0.12, -0.06],
@@ -808,11 +946,11 @@ function buildCrate() {
 
 /** 마켓 쇼핑백 — 거래가 오간 흔적 */
 function buildShoppingBag() {
-  const bagMat = flatMaterial('#F0C978');
+  const bagMat = flatMaterial('#FFC24D');
   const bag = box(0.3, 0.36, 0.18, bagMat, [0, 0.18, 0]);
   const handle = new THREE.Mesh(
     new THREE.TorusGeometry(0.1, 0.018, 4, 10, Math.PI),
-    flatMaterial('#B5793C')
+    flatMaterial(UI_FRAME)
   );
   handle.position.set(0, 0.36, 0);
   const badge = box(0.14, 0.1, 0.02, glowMaterial(SPROUT_GREEN, { transparent: false }), [
@@ -835,7 +973,7 @@ function buildFloorSticker(spec) {
 
   const ring = new THREE.Mesh(
     new THREE.RingGeometry(0.36, 0.44, 10),
-    glowMaterial('#FBF2DE', { opacity: 0.42, depthWrite: false })
+    glowMaterial(UI_CARD, { opacity: 0.42, depthWrite: false })
   );
   ring.rotation.x = -Math.PI / 2;
   ring.position.y = 0.014;
@@ -845,9 +983,9 @@ function buildFloorSticker(spec) {
 
 /** 낮은 마켓 조명 — 스캔 뷰에서도 남으므로 키를 낮게 잡는다 */
 function buildLowLamp() {
-  const poleMat = flatMaterial('#B5793C');
+  const poleMat = flatMaterial(UI_FRAME);
   const pole = cylinder(0.035, 0.05, 0.44, 5, poleMat, [0, 0.22, 0]);
-  const shade = cone(0.16, 0.16, 6, flatMaterial('#E8A13A'), [0, 0.52, 0]);
+  const shade = cone(0.16, 0.16, 6, flatMaterial('#FFC24D'), [0, 0.52, 0]);
   shade.rotation.x = Math.PI;
   const bulb = blob(0.07, 0, glowMaterial('#FFE9AE', { transparent: false }), [
     0,
@@ -870,9 +1008,9 @@ function buildLowLamp() {
  *   오른쪽 감자3 — 따뜻함. 낮고 둥근 상담대와 부드러운 등.
  */
 function buildMarketCounter() {
-  const deckMat = flatMaterial('#E9C88A');
-  const frameMat = flatMaterial('#B5793C');
-  const panelMat = flatMaterial('#FBF2DE');
+  const deckMat = flatMaterial(UI_PANEL);
+  const frameMat = flatMaterial(UI_FRAME);
+  const panelMat = flatMaterial(UI_CARD);
 
   const g = group();
 
@@ -974,19 +1112,19 @@ function buildMarketCounter() {
 
 /** 앱 알림등 — 새 거래 알림이 도착한다 */
 function buildNotifyPost() {
-  const poleMat = flatMaterial('#B5793C');
+  const poleMat = flatMaterial(UI_FRAME);
   const pole = cylinder(0.05, 0.07, 1.8, 6, poleMat, [0, 0.9, 0]);
-  const head = box(0.44, 0.5, 0.08, flatMaterial('#FBF2DE'), [0, 2.0, 0]);
+  const head = box(0.44, 0.5, 0.08, flatMaterial(UI_CARD), [0, 2.0, 0]);
   const bulbMat = glowMaterial(EMOTION.flutter, { opacity: 0.95, depthWrite: true });
   const bulb = blob(0.12, 0, bulbMat, [0, 2.16, 0.07]);
   primeGlow(bulb, 'notify-bulb');
   // 알림 뱃지 두 줄
-  const lineA = box(0.26, 0.05, 0.02, glowMaterial('#E8A13A', { opacity: 0.8 }), [
+  const lineA = box(0.26, 0.05, 0.02, glowMaterial('#FFC24D', { opacity: 0.8 }), [
     0,
     1.94,
     0.05,
   ]);
-  const lineB = box(0.18, 0.05, 0.02, glowMaterial('#E8A13A', { opacity: 0.6 }), [
+  const lineB = box(0.18, 0.05, 0.02, glowMaterial('#FFC24D', { opacity: 0.6 }), [
     -0.04,
     1.84,
     0.05,
@@ -1007,11 +1145,11 @@ function buildNotifyPost() {
  * 텍스트 없이 무대·링라이트·폰 프레임·카메라의 형태만으로 알아보게 한다.
  */
 function buildShortsStage() {
-  const frameMat = flatMaterial('#B5793C');
+  const frameMat = flatMaterial(UI_FRAME);
   const g = group();
 
   // 작은 원형 무대
-  const stage = cylinder(1.5, 1.62, 0.22, 14, flatMaterial('#F0D9A8'), [0, 0.11, 0]);
+  const stage = cylinder(1.5, 1.62, 0.22, 14, flatMaterial('#E6EFF5'), [0, 0.11, 0]);
   g.add(stage);
   const stageRim = new THREE.Mesh(
     new THREE.RingGeometry(1.5, 1.68, 14),
@@ -1035,8 +1173,8 @@ function buildShortsStage() {
   // 세로 스마트폰 프레임 — 쇼츠 화면
   const phoneStand = cylinder(0.05, 0.07, 1.1, 6, frameMat, [1.1, 0.55, 0.2]);
   g.add(phoneStand);
-  const phoneBody = box(0.6, 1.1, 0.08, flatMaterial('#4A3A2A'), [1.1, 1.62, 0.2]);
-  const phoneScreen = box(0.5, 0.96, 0.03, glowMaterial('#FFE6B8', { opacity: 0.9 }), [
+  const phoneBody = box(0.6, 1.1, 0.08, flatMaterial(UI_DEVICE), [1.1, 1.62, 0.2]);
+  const phoneScreen = box(0.5, 0.96, 0.03, glowMaterial(UI_SCREEN, { opacity: 0.9 }), [
     1.1,
     1.62,
     0.26,
@@ -1055,8 +1193,8 @@ function buildShortsStage() {
     leg.rotation.set(Math.cos(a) * 0.22, 0, -Math.sin(a) * 0.22);
     tripod.add(leg);
   }
-  tripod.add(box(0.4, 0.3, 0.5, flatMaterial('#5A4632'), [0, 1.35, 0]));
-  const lens = cylinder(0.12, 0.12, 0.16, 8, flatMaterial('#2E2418'), [0, 1.35, 0.3]);
+  tripod.add(box(0.4, 0.3, 0.5, flatMaterial('#4A5763'), [0, 1.35, 0]));
+  const lens = cylinder(0.12, 0.12, 0.16, 8, flatMaterial('#232B33'), [0, 1.35, 0.3]);
   lens.rotation.x = Math.PI / 2;
   tripod.add(lens);
   tripod.add(
@@ -1070,7 +1208,7 @@ function buildShortsStage() {
 
   // 사연을 가진 감정들이 무대 위에 진열되어 있다
   // (자신감 판매자 · 자신감 구매자 · 외로움 판매자 · 외로움 구매자)
-  const shelf = box(1.6, 0.1, 0.44, flatMaterial('#E9C88A'), [0, 0.5, 0.75]);
+  const shelf = box(1.6, 0.1, 0.44, flatMaterial(UI_PANEL), [0, 0.5, 0.75]);
   g.add(shelf);
   for (const lx of [-0.5, -0.16]) {
     g.add(cylinder(0.05, 0.05, 0.34, 5, frameMat, [lx, 0.28, 0.75]));
@@ -1099,11 +1237,11 @@ function buildShortsStage() {
  * 주머니는 반쯤 헐거워졌고, 남은 조각 몇 개가 그 위에 흩어져 있다.
  */
 function buildMemoryPouch() {
-  const clothMat = flatMaterial('#C98A4E', { emissive: '#3A2110' });
+  const clothMat = flatMaterial(WARM_CLOTH, { emissive: '#3A2110' });
   const g = group();
 
   // 낮은 좌대
-  g.add(cylinder(0.9, 1.0, 0.18, 10, flatMaterial('#E9C88A'), [0, 0.09, 0]));
+  g.add(cylinder(0.9, 1.0, 0.18, 10, flatMaterial(UI_PANEL), [0, 0.09, 0]));
 
   // 주머니 본체 — 위로 갈수록 좁아지는 자루
   const pouch = cylinder(0.36, 0.62, 0.9, 8, clothMat, [0, 0.63, 0]);
@@ -1111,7 +1249,7 @@ function buildMemoryPouch() {
   // 주머니 입구 끈
   const tie = new THREE.Mesh(
     new THREE.TorusGeometry(0.34, 0.05, 4, 10),
-    flatMaterial('#8A6A44')
+    flatMaterial(UI_FRAME_DEEP)
   );
   tie.rotation.x = Math.PI / 2;
   tie.position.y = 1.06;
@@ -1119,7 +1257,7 @@ function buildMemoryPouch() {
   // 벌어진 입구 — 안이 비어 보인다
   const mouth = new THREE.Mesh(
     new THREE.CircleGeometry(0.3, 8),
-    flatMaterial('#5A3A1E')
+    flatMaterial('#6B5240')
   );
   mouth.rotation.x = -Math.PI / 2;
   mouth.position.y = 1.09;
@@ -1163,7 +1301,7 @@ function buildMemoryPouch() {
  * "조금 이상한 노점" 정도의 불안감만 남긴다.
  */
 function buildSuspiciousStall() {
-  const woodMat = flatMaterial('#A4693C', { emissive: '#2E1008' });
+  const woodMat = flatMaterial('#A85F63', { emissive: '#2E1008' });
   const g = group();
 
   // 삐뚤어진 매대
@@ -1197,7 +1335,7 @@ function buildSuspiciousStall() {
   g.add(pool);
 
   // 과장된 특가 팻말 — 큰 판에 붉은 띠 두 줄
-  const signBoard = box(0.9, 0.6, 0.06, flatMaterial('#FBF2DE'), [0.85, 1.35, 0.3]);
+  const signBoard = box(0.9, 0.6, 0.06, flatMaterial(UI_CARD), [0.85, 1.35, 0.3]);
   signBoard.rotation.z = -0.22;
   g.add(signBoard);
   for (let i = 0; i < 2; i += 1) {
@@ -1258,13 +1396,13 @@ function primeSuspiciousCore(root) {
  * 그래서 진열대도 가격표도 없고, 벤치와 등과 작은 새싹만 있다.
  */
 function buildFreeShareCorner() {
-  const woodMat = flatMaterial('#B5854E');
+  const woodMat = flatMaterial(WARM_WOOD);
   const g = group();
 
   // 낮은 골목 바닥 — 주변보다 차분한 색
   const path = new THREE.Mesh(
     new THREE.CircleGeometry(2.4, 16),
-    flatMaterial('#E4D3B0')
+    flatMaterial('#E8DCC4')
   );
   path.rotation.x = -Math.PI / 2;
   path.position.y = 0.02;
@@ -1281,9 +1419,9 @@ function buildFreeShareCorner() {
   g.add(bench);
 
   // 따뜻한 가로등 — 이 골목의 유일한 빛
-  const lampPost = cylinder(0.06, 0.09, 2.4, 6, flatMaterial('#9A7648'), [-1.5, 1.2, -0.3]);
+  const lampPost = cylinder(0.06, 0.09, 2.4, 6, flatMaterial(UI_FRAME_DEEP), [-1.5, 1.2, -0.3]);
   g.add(lampPost);
-  const lampShade = cone(0.3, 0.34, 7, flatMaterial('#E9C88A'), [-1.5, 2.5, -0.3]);
+  const lampShade = cone(0.3, 0.34, 7, flatMaterial(UI_PANEL), [-1.5, 2.5, -0.3]);
   lampShade.rotation.x = Math.PI;
   g.add(lampShade);
   const lampBulb = blob(0.14, 0, glowMaterial('#FFE3AE', { opacity: 0.95, depthWrite: true }), [
@@ -1302,7 +1440,7 @@ function buildFreeShareCorner() {
 
   // 소박한 안내판 — 값도 순위도 적혀 있지 않다
   const signPost = cylinder(0.04, 0.05, 0.8, 5, woodMat, [1.5, 0.4, 0.5]);
-  const signBoard = box(0.6, 0.36, 0.05, flatMaterial('#FBF2DE'), [1.5, 0.94, 0.5]);
+  const signBoard = box(0.6, 0.36, 0.05, flatMaterial(UI_CARD), [1.5, 0.94, 0.5]);
   signBoard.rotation.y = -0.3;
   const signMark = box(0.3, 0.08, 0.02, glowMaterial(SPROUT_GREEN, { transparent: false }), [
     1.52,
@@ -1356,7 +1494,7 @@ function buildDimmedCrate() {
   crate.scale.setScalar(1.7);
   g.add(crate);
 
-  const emptyCrate = box(0.9, 0.5, 0.7, flatMaterial('#B07E48'), [1.1, 0.25, 0.3]);
+  const emptyCrate = box(0.9, 0.5, 0.7, flatMaterial('#9DB6C7'), [1.1, 0.25, 0.3]);
   emptyCrate.rotation.z = 0.16;
   g.add(emptyCrate);
 
@@ -1384,17 +1522,138 @@ function buildDimmedCrate() {
 function buildMarketSun() {
   const disc = new THREE.Mesh(
     new THREE.CircleGeometry(1, 26),
-    glowMaterial('#FFF0C8', { opacity: 0.94 })
+    glowMaterial('#FFFDF2', { opacity: 0.95 })
   );
   const halo = new THREE.Mesh(
-    new THREE.CircleGeometry(1.8, 26),
-    glowMaterial('#FFD9A0', { opacity: 0.22, depthWrite: false })
+    new THREE.CircleGeometry(1.9, 26),
+    glowMaterial('#DFF2FF', { opacity: 0.24, depthWrite: false })
   );
   halo.position.z = -0.05;
   const g = group(halo, disc);
   g.userData.billboard = true;
   return g;
 }
+
+/** 한낮의 옅은 구름 — 하늘이 비어 보이지 않게 */
+function buildDayCloud() {
+  const puff = (r, x, y) => {
+    const m = new THREE.Mesh(
+      new THREE.CircleGeometry(r, 12),
+      glowMaterial('#FFFFFF', { opacity: 0.62, depthWrite: false })
+    );
+    m.position.set(x, y, 0);
+    return m;
+  };
+  const g = group(puff(1, -0.7, 0), puff(1.3, 0.1, 0.14), puff(0.86, 0.9, -0.04));
+  g.userData.billboard = true;
+  return g;
+}
+
+/* ------------------------------------------------------------------ */
+/* 앱 속 세상 — 떠 있는 UI                                             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * 공중에 떠 있는 앱 카드.
+ *
+ * 이 시장이 스마트폰 앱 안이라는 것을 텍스트 없이 알려 주는 장치다.
+ * 둥근 흰 카드 위에 감정 색 띠 하나와 회색 본문 줄 두 개 — 딱 그만큼만
+ * 그려도 "상품 카드" 로 읽힌다.
+ */
+function buildUiCard(spec) {
+  const color = EMOTION[spec.emotion] || EMOTION.empathy;
+
+  const card = box(1.5, 1.0, 0.09, flatMaterial(UI_CARD), [0, 0, 0]);
+  const thumb = box(1.24, 0.44, 0.04, glowMaterial(color, { transparent: false }), [
+    0,
+    0.22,
+    0.06,
+  ]);
+  const lineA = box(1.0, 0.09, 0.03, flatMaterial(UI_PANEL), [-0.1, -0.14, 0.06]);
+  const lineB = box(0.62, 0.09, 0.03, flatMaterial(UI_PANEL), [-0.29, -0.32, 0.06]);
+  // 가격표 — 추억 한 조각
+  const price = blob(0.08, 0, glowMaterial(MEMORY_GOLD, { transparent: false }), [
+    0.55,
+    -0.3,
+    0.07,
+  ]);
+
+  const g = group(card, thumb, lineA, lineB, price);
+  g.userData.kind = 'uiCard';
+  return g;
+}
+
+/** 알림 토스트 — 새 거래가 올라왔다는 팝업 */
+function buildToastPopup() {
+  const panel = box(1.7, 0.5, 0.09, flatMaterial(UI_CARD), [0, 0, 0]);
+  const dot = blob(0.12, 0, glowMaterial(EMOTION.joy, { transparent: false }), [
+    -0.62,
+    0,
+    0.06,
+  ]);
+  const lineA = box(0.72, 0.08, 0.03, flatMaterial(UI_PANEL), [0.06, 0.11, 0.06]);
+  const lineB = box(0.48, 0.08, 0.03, flatMaterial(UI_PANEL), [-0.06, -0.09, 0.06]);
+  const badge = blob(0.11, 0, glowMaterial(SUSPICIOUS_RED, { transparent: false }), [
+    0.74,
+    0.19,
+    0.06,
+  ]);
+  return group(panel, dot, lineA, lineB, badge);
+}
+
+/**
+ * 로딩 스피너.
+ * 링의 일부만 밝게 두고 아주 느리게 돌린다. 앱이 무언가를 불러오는 중이라는,
+ * 이 세계가 프로그램 안이라는 신호.
+ */
+function buildLoadingRing() {
+  const track = new THREE.Mesh(
+    new THREE.TorusGeometry(0.62, 0.07, 6, 20),
+    glowMaterial(UI_PANEL, { opacity: 0.5, depthWrite: false })
+  );
+  const arc = new THREE.Mesh(
+    new THREE.TorusGeometry(0.62, 0.08, 6, 20, Math.PI * 0.6),
+    glowMaterial(PALETTE.accent, { transparent: false })
+  );
+  arc.name = 'spinner-arc';
+
+  const spinner = group(track, arc);
+  spinner.position.y = 1.5;
+  const post = cylinder(0.05, 0.07, 1.5, 6, flatMaterial(UI_FRAME), [0, 0.75, 0]);
+
+  const g = group(post, spinner);
+  g.userData.kind = 'loadingRing';
+  return g;
+}
+
+/* ------------------------------------------------------------------ */
+/* 낮의 도시                                                           */
+/* ------------------------------------------------------------------ */
+
+/** 횡단보도 — 바닥에 붙는 납작한 흰 줄무늬 */
+function buildCrosswalk() {
+  const g = group();
+  const stripeMat = glowMaterial('#FFFFFF', { opacity: 0.62, depthWrite: false });
+  for (let i = 0; i < 5; i += 1) {
+    const stripe = box(0.3, 0.02, 1.5, stripeMat, [-0.72 + i * 0.36, 0.014, 0]);
+    g.add(stripe);
+  }
+  return g;
+}
+
+/** 가로수 — 한낮의 도시 초록 */
+function buildStreetTree() {
+  const trunk = cylinder(0.08, 0.12, 0.8, 6, flatMaterial(UI_FRAME_DEEP), [0, 0.4, 0]);
+  const leafMat = flatMaterial(SPROUT_GREEN, { emissive: '#12300F' });
+  const crown = group(
+    blob(0.52, 0, leafMat, [0, 1.16, 0]),
+    blob(0.34, 0, leafMat, [0.32, 0.94, 0.1]),
+    blob(0.3, 0, leafMat, [-0.28, 0.98, -0.12])
+  );
+  const planter = cylinder(0.3, 0.34, 0.16, 8, flatMaterial(UI_PANEL), [0, 0.08, 0]);
+  return group(planter, trunk, crown);
+}
+
 
 /* ------------------------------------------------------------------ */
 /* 랜드마크 — 골목에서 만나는 여섯 장면                                */
@@ -1426,7 +1685,7 @@ function buildWishPotato() {
 
 /** 2. 감자데이 촬영장 — 감정마다 사연이 있다 */
 function buildShortsSpot() {
-  const frameMat = flatMaterial('#B5793C');
+  const frameMat = flatMaterial(UI_FRAME);
 
   const stand = cylinder(0.04, 0.06, 0.8, 5, frameMat, [0, 0.4, 0]);
   const ringLight = new THREE.Mesh(
@@ -1437,8 +1696,8 @@ function buildShortsSpot() {
   primeGlow(ringLight, 'ring-light');
 
   // 세로 폰 프레임
-  const phone = box(0.3, 0.54, 0.05, flatMaterial('#4A3A2A'), [0.42, 0.72, 0.05]);
-  const screen = box(0.24, 0.46, 0.03, glowMaterial('#FFE6B8', { opacity: 0.9 }), [
+  const phone = box(0.3, 0.54, 0.05, flatMaterial(UI_DEVICE), [0.42, 0.72, 0.05]);
+  const screen = box(0.24, 0.46, 0.03, glowMaterial(UI_SCREEN, { opacity: 0.9 }), [
     0.42,
     0.72,
     0.09,
@@ -1454,16 +1713,16 @@ function buildShortsSpot() {
 
 /** 3. 비어가는 추억 주머니 — 감정을 사는 동안 잃어 가는 것 */
 function buildEmptyPouch() {
-  const clothMat = flatMaterial('#C98A4E', { emissive: '#3A2110' });
+  const clothMat = flatMaterial(WARM_CLOTH, { emissive: '#3A2110' });
 
   const pouch = cylinder(0.2, 0.34, 0.5, 8, clothMat, [0, 0.25, 0]);
   const tie = new THREE.Mesh(
     new THREE.TorusGeometry(0.19, 0.035, 4, 10),
-    flatMaterial('#8A6A44')
+    flatMaterial(UI_FRAME_DEEP)
   );
   tie.rotation.x = Math.PI / 2;
   tie.position.y = 0.5;
-  const mouth = new THREE.Mesh(new THREE.CircleGeometry(0.17, 8), flatMaterial('#5A3A1E'));
+  const mouth = new THREE.Mesh(new THREE.CircleGeometry(0.17, 8), flatMaterial('#6B5240'));
   mouth.rotation.x = -Math.PI / 2;
   mouth.position.y = 0.52;
 
@@ -1510,8 +1769,8 @@ function buildSuspiciousPotato() {
   });
 
   // 반값 팻말 — 기울어져 있다
-  const post = cylinder(0.03, 0.04, 0.5, 5, flatMaterial('#A4693C'), [0.4, 0.25, 0.1]);
-  const board = box(0.34, 0.22, 0.04, flatMaterial('#FBF2DE'), [0.4, 0.58, 0.1]);
+  const post = cylinder(0.03, 0.04, 0.5, 5, flatMaterial('#A85F63'), [0.4, 0.25, 0.1]);
+  const board = box(0.34, 0.22, 0.04, flatMaterial(UI_CARD), [0.4, 0.58, 0.1]);
   board.rotation.z = -0.2;
   const stripe = box(0.24, 0.06, 0.02, glowMaterial(SUSPICIOUS_RED, { transparent: false }), [
     0.4,
@@ -1542,15 +1801,15 @@ function buildSuspiciousPotato() {
  * 두지 않고 작은 기억 상자 위에 얹고 빛 입자로 감싼다.
  */
 function buildLastMemory() {
-  const woodMat = flatMaterial('#B5854E');
+  const woodMat = flatMaterial(WARM_WOOD);
 
   // 작은 오르골 같은 기억 상자
   const boxBody = box(0.5, 0.28, 0.4, woodMat, [0, 0.14, 0]);
-  const boxLid = box(0.54, 0.06, 0.44, flatMaterial('#D9A960'), [0, 0.31, 0]);
-  const hinge = cylinder(0.02, 0.02, 0.4, 5, flatMaterial('#8A6A44'), [0, 0.31, -0.2]);
+  const boxLid = box(0.54, 0.06, 0.44, flatMaterial('#E8C07A'), [0, 0.31, 0]);
+  const hinge = cylinder(0.02, 0.02, 0.4, 5, flatMaterial(UI_FRAME_DEEP), [0, 0.31, -0.2]);
   hinge.rotation.z = Math.PI / 2;
   // 오르골 태엽
-  const crank = cylinder(0.02, 0.02, 0.14, 5, flatMaterial('#8A6A44'), [0.3, 0.16, 0]);
+  const crank = cylinder(0.02, 0.02, 0.14, 5, flatMaterial(UI_FRAME_DEEP), [0.3, 0.16, 0]);
   crank.rotation.z = Math.PI / 2;
 
   // 따뜻한 황금빛 결정 — 투명하고 작다
@@ -1592,7 +1851,7 @@ function buildLastMemory() {
 
 /** 6. 무료나눔 벤치 — 감정을 파는 대신 마음을 나누기로 한 자리 */
 function buildShareBench() {
-  const woodMat = flatMaterial('#B5854E');
+  const woodMat = flatMaterial(WARM_WOOD);
 
   const bench = group();
   bench.add(box(0.9, 0.07, 0.3, woodMat, [0, 0.26, 0]));
@@ -1601,8 +1860,8 @@ function buildShareBench() {
   bench.add(box(0.07, 0.26, 0.26, woodMat, [0.36, 0.13, 0]));
 
   // 작은 가로등
-  const post = cylinder(0.035, 0.05, 1.0, 5, flatMaterial('#9A7648'), [-0.62, 0.5, -0.12]);
-  const shade = cone(0.16, 0.18, 6, flatMaterial('#E9C88A'), [-0.62, 1.09, -0.12]);
+  const post = cylinder(0.035, 0.05, 1.0, 5, flatMaterial(UI_FRAME_DEEP), [-0.62, 0.5, -0.12]);
+  const shade = cone(0.16, 0.18, 6, flatMaterial(UI_PANEL), [-0.62, 1.09, -0.12]);
   shade.rotation.x = Math.PI;
   const lamp = blob(0.08, 0, glowMaterial('#FFE3AE', { opacity: 0.95, depthWrite: true }), [
     -0.62,
@@ -1619,7 +1878,7 @@ function buildShareBench() {
   shard.scale.set(0.75, 1.3, 0.75);
   shard.position.set(0.16, 0.4, 0.02);
 
-  const letter = box(0.22, 0.02, 0.16, flatMaterial('#FBF2DE'), [-0.14, 0.31, 0.04]);
+  const letter = box(0.22, 0.02, 0.16, flatMaterial(UI_CARD), [-0.14, 0.31, 0.04]);
   letter.rotation.y = 0.3;
 
   const sprout = buildSprout();
