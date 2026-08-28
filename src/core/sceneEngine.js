@@ -337,24 +337,35 @@ export class SceneEngine {
     // 아니라 기복 있는 지형으로 읽히게 하는 장치. (탑다운 스캔 뷰에서는
     // 높이가 스캔값으로 수렴하고 스캔 카드가 덮으므로 인식에는 영향이 없다.)
     const jitter = this.theme.getHeightJitter ? this.theme.getHeightJitter() : 0;
+    const shapeCell = this.theme.getCellScale
+      ? this.theme.getCellScale.bind(this.theme)
+      : null;
 
     for (let row = 0; row < size; row += 1) {
       for (let col = 0; col < size; col += 1) {
+        const isDark = matrix[row][col];
+        // 길(light)까지 심하게 흔들면 발밑이 계단투성이가 되어 걸어 다닐 수
+        // 없으므로, 지터는 덩어리(dark)에만 세게 준다.
+        const defaultScale =
+          jitter > 0
+            ? 1 +
+              (cellNoise(col, row) - 0.5) * 2 * jitter * (isDark ? 1 : 0.2)
+            : 1;
+
         const cell = {
           x: col - (size - 1) / 2,
           z: row - (size - 1) / 2,
           col,
           row,
-          // 길(light)까지 심하게 흔들면 발밑이 계단투성이가 되어 걸어 다닐 수
-          // 없으므로, 지터는 덩어리(dark)에만 세게 준다.
-          scale:
-            jitter > 0
-              ? 1 +
-                (cellNoise(col, row) - 0.5) *
-                  2 *
-                  jitter *
-                  (matrix[row][col] ? 1 : 0.2)
-              : 1,
+          // 테마가 셀 높이를 직접 설계할 수 있다.
+          //
+          // 지형에 계단이나 단을 만들려면 "어느 칸이 낮은가" 를 테마가 정해야
+          // 하는데, 기본 지터는 엔진 안의 노이즈라 테마가 손댈 수 없었다.
+          // 이 값 하나가 렌더 높이(_writeInstances)와 충돌 높이(_buildHeightmap)를
+          // 함께 결정하므로, 보이는 지형과 실제로 걸어 다니는 지형이 어긋나지 않는다.
+          scale: shapeCell
+            ? shapeCell({ col, row, isDark, matrix, size, defaultScale })
+            : defaultScale,
           tint: cellNoise(col * 7 + 3, row * 11 + 5),
         };
         (matrix[row][col] ? darkCells : lightCells).push(cell);
