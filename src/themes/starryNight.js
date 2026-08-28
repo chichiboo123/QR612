@@ -146,6 +146,7 @@ export function placeDecorations(matrixSize) {
   const [x, z] = ringPoint(matrixSize, -34, 7);
   specs.push({
     type: 'lampPlanet',
+    solid: true,
     position: [x, 0, z],
     rotation: [0, 2.5, 0],
     scale: 2.2,
@@ -155,6 +156,7 @@ export function placeDecorations(matrixSize) {
   const [ax, az] = ringPoint(matrixSize, 128, 8);
   specs.push({
     type: 'asteroid',
+    solid: true,
     position: [ax, 1.5, az],
     rotation: [0.3, 0.8, 0.2],
     scale: 1.6,

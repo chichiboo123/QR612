@@ -249,6 +249,7 @@ export function placeDecorations(matrixSize, matrix) {
   const [cx, cz] = squareRingPoint(matrixSize, 0, 5);
   specs.push({
     type: 'marketCounter',
+    solid: true,
     position: [cx, 0, cz],
     rotation: [0, facingCenter(0), 0],
     scale: 1.5,
@@ -259,6 +260,7 @@ export function placeDecorations(matrixSize, matrix) {
     const [nx, nz] = squareRingPoint(matrixSize, angle, 4.2);
     specs.push({
       type: 'notifyPost',
+      solid: true,
       position: [nx, 0, nz],
       rotation: [0, facingCenter(angle), 0],
       scale: 1.2,
@@ -269,6 +271,7 @@ export function placeDecorations(matrixSize, matrix) {
   const [sx, sz] = squareRingPoint(matrixSize, 90, 6);
   specs.push({
     type: 'shortsStage',
+    solid: true,
     position: [sx, 0, sz],
     rotation: [0, facingCenter(90), 0],
     scale: 1.5,
@@ -278,6 +281,7 @@ export function placeDecorations(matrixSize, matrix) {
   const [px, pz] = squareRingPoint(matrixSize, 180, 5.5);
   specs.push({
     type: 'memoryPouch',
+    solid: true,
     position: [px, 0, pz],
     rotation: [0, facingCenter(180) + 0.3, 0],
     scale: 1.6,
@@ -287,6 +291,7 @@ export function placeDecorations(matrixSize, matrix) {
   const [ux, uz] = squareRingPoint(matrixSize, 225, 5);
   specs.push({
     type: 'suspiciousStall',
+    solid: true,
     position: [ux, 0, uz],
     rotation: [0, facingCenter(225) - 0.35, 0],
     scale: 1.45,
@@ -296,6 +301,7 @@ export function placeDecorations(matrixSize, matrix) {
   const [bx, bz] = squareRingPoint(matrixSize, 285, 7.5);
   specs.push({
     type: 'freeShareCorner',
+    solid: true,
     position: [bx, 0, bz],
     rotation: [0, facingCenter(285) + 0.2, 0],
     scale: 1.5,
@@ -306,6 +312,7 @@ export function placeDecorations(matrixSize, matrix) {
   const [dx, dz] = squareRingPoint(matrixSize, 320, 4.4);
   specs.push({
     type: 'dimmedCrate',
+    solid: true,
     position: [dx, 0, dz],
     rotation: [0, facingCenter(320) - 0.5, 0],
     scale: 1.25,
@@ -369,6 +376,7 @@ export function placeDecorations(matrixSize, matrix) {
     const [tx, tz] = squareRingPoint(matrixSize, angle, 5.4 + rand() * 3.2);
     specs.push({
       type: 'streetTree',
+      solid: true,
       position: [tx, 0, tz],
       rotation: [0, rand() * Math.PI * 2, 0],
       scale: 1.3 + rand() * 0.7,

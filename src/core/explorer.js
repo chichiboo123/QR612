@@ -44,6 +44,11 @@ const PLAYER = {
 /** 이 거리 안에 들어오면 랜드마크를 발견한 것으로 본다 */
 const DISCOVER_RADIUS = 1.4;
 
+/** 더블클릭 목적지에 이 정도 가까워지면 도착으로 본다 */
+const AUTO_ARRIVE_RADIUS = 0.6;
+/** 자동 이동 중 한 프레임에 돌 수 있는 최대 각(라디안) */
+const AUTO_TURN_RATE = 0.12;
+
 export class Explorer {
   /**
    * @param {import('./sceneEngine.js').SceneEngine} engine
@@ -67,6 +72,10 @@ export class Explorer {
     this._keys = new Set();
     this._wantJump = false;
     this._jumpCount = 0;
+    /** 더블클릭/더블탭으로 지정한 목적지 (없으면 null) */
+    this._autoTarget = null;
+    this._autoStuck = 0;
+    this._raycaster = new THREE.Raycaster();
 
     this._prevCamera = null;
     this._bindKeyboard();
@@ -134,45 +143,87 @@ export class Explorer {
    * 남쪽 가장자리에서 light 모듈이 가장 깊게 이어지는 열을 찾아 그 앞에 세운다.
    */
   _spawn() {
-    const size = this.engine.qr.size;
-    const x = this._findEntranceColumn(size);
+    const engine = this.engine;
+    const size = engine.qr.size;
 
-    this.position.set(x, 0, size / 2 + 2.5);
-    this.position.y = this.engine.getHeightAt(this.position.x, this.position.z);
+    // 매번 다른 곳에서 시작한다. 같은 자리에서만 시작하면 두 번째 여행부터
+    // 새로 볼 것이 없다. 네 변 중 하나를 골라, 그 변에서 가장 깊이 들어갈 수
+    // 있는 입구를 찾아 선다.
+    const side = Math.floor(Math.random() * 4);
+    const offset = size / 2 + 2.5;
+    const lane = this._findEntranceLane(size, side);
+
+    switch (side) {
+      case 0: // 남쪽(+Z) 에서 -Z 를 보고 진입
+        this.position.set(lane, 0, offset);
+        this.yaw = 0;
+        break;
+      case 1: // 북쪽(-Z)
+        this.position.set(lane, 0, -offset);
+        this.yaw = Math.PI;
+        break;
+      case 2: // 동쪽(+X)
+        this.position.set(offset, 0, lane);
+        this.yaw = -Math.PI / 2;
+        break;
+      default: // 서쪽(-X)
+        this.position.set(-offset, 0, lane);
+        this.yaw = Math.PI / 2;
+        break;
+    }
+
+    this.position.y = engine.getHeightAt(this.position.x, this.position.z);
     this.velocityY = 0;
     this.onGround = true;
     this._jumpCount = 0;
-    this.yaw = 0; // yaw 0 = -Z 방향, 즉 그리드 중심을 본다
+    this._autoTarget = null;
     this.pitch = -0.06;
   }
 
-  /** 남쪽 가장자리에서 안쪽으로 가장 깊게 뚫린 열의 월드 x 좌표 */
-  _findEntranceColumn(size) {
+  /**
+   * 한 변에서 그리드 안쪽으로 가장 깊이 들어가는 입구를 찾는다.
+   * 후보가 여러 개면 그중 하나를 무작위로 골라 매번 다른 골목으로 들어가게 한다.
+   *
+   * @param {number} size
+   * @param {number} side 0=+Z, 1=-Z, 2=+X, 3=-X
+   * @returns {number} 진입선 위의 좌표 (side 에 따라 x 또는 z)
+   */
+  _findEntranceLane(size, side) {
     const matrix = this.engine.matrix;
     if (!matrix) return 0;
 
-    let bestCol = Math.floor(size / 2);
-    let bestDepth = -1;
+    // (line, step) → 매트릭스 좌표
+    const cellAt = (line, step) => {
+      switch (side) {
+        case 0:
+          return matrix[size - 1 - step][line];
+        case 1:
+          return matrix[step][line];
+        case 2:
+          return matrix[line][size - 1 - step];
+        default:
+          return matrix[line][step];
+      }
+    };
 
-    for (let col = 0; col < size; col += 1) {
+    // 가장 깊은 골목 하나만 고르면 변마다 후보가 한둘뿐이라 결국 늘 같은
+    // 자리에서 시작하게 된다. 실제로 걸어 들어갈 수 있는 입구(두 칸 이상)를
+    // 모두 후보로 두고 그중 하나를 고른다.
+    const openings = [];
+    let deepest = { depth: -1, line: Math.floor(size / 2) };
+    for (let line = 0; line < size; line += 1) {
       let depth = 0;
-      for (let row = size - 1; row >= 0; row -= 1) {
-        if (matrix[row][col]) break;
-        depth += 1;
-      }
-      // 같은 깊이라면 가운데에 가까운 열을 고른다
-      const better =
-        depth > bestDepth ||
-        (depth === bestDepth &&
-          Math.abs(col - size / 2) < Math.abs(bestCol - size / 2));
-      if (better) {
-        bestDepth = depth;
-        bestCol = col;
-      }
+      while (depth < size && !cellAt(line, depth)) depth += 1;
+      if (depth > deepest.depth) deepest = { depth, line };
+      if (depth >= 2) openings.push(line);
     }
 
-    return bestCol - (size - 1) / 2;
+    const line = openings.length
+      ? openings[Math.floor(Math.random() * openings.length)]
+      : deepest.line;
+    return line - (size - 1) / 2;
   }
+
 
   _resetLandmarks() {
     for (const landmark of this.engine.landmarks || []) {
@@ -240,6 +291,8 @@ export class Explorer {
     if (!this.active) return;
 
     const step = Math.min(dt, 0.05);
+    const beforeX = this.position.x;
+    const beforeZ = this.position.z;
     const { x: inputX, y: inputY } = this._combinedInput();
 
     const speed = this.running ? PLAYER.runSpeed : PLAYER.walkSpeed;
@@ -289,8 +342,51 @@ export class Explorer {
     this.position.x = clamp(this.position.x, -limit, limit);
     this.position.z = clamp(this.position.z, -limit, limit);
 
+    // 자동 이동 중 앞이 막혀 제자리라면 포기한다 (벽에 계속 밀지 않게)
+    if (this._autoTarget) {
+      const moved = Math.hypot(
+        this.position.x - beforeX,
+        this.position.z - beforeZ
+      );
+      this._autoStuck = moved < 0.004 ? this._autoStuck + step : 0;
+      if (this._autoStuck > 0.7) this._autoTarget = null;
+    }
+
     this._checkLandmarks();
     this._applyCamera();
+  }
+
+  /**
+   * 화면의 한 점을 찍어 그 자리로 걸어가게 한다.
+   * (PC 더블클릭 / 모바일 더블탭)
+   *
+   * @param {number} ndcX -1~1
+   * @param {number} ndcY -1~1
+   * @returns {boolean} 목적지를 찾았는지
+   */
+  moveToScreenPoint(ndcX, ndcY) {
+    if (!this.active) return false;
+    const engine = this.engine;
+    const targets = [
+      engine.darkMesh?.mesh,
+      engine.lightMesh?.mesh,
+      engine.ground?.mesh,
+    ].filter(Boolean);
+    if (!targets.length) return false;
+
+    this._raycaster.setFromCamera({ x: ndcX, y: ndcY }, engine.camera);
+    const hits = this._raycaster.intersectObjects(targets, false);
+    if (!hits.length) return false;
+
+    const p = hits[0].point;
+    this._autoTarget = { x: p.x, z: p.z };
+    this._autoStuck = 0;
+    return true;
+  }
+
+  /** 자동 이동을 멈춘다 (직접 조작하면 곧바로 취소된다) */
+  cancelAutoMove() {
+    this._autoTarget = null;
   }
 
   _combinedInput() {
@@ -301,6 +397,25 @@ export class Explorer {
     if (this._keys.has('KeyS') || this._keys.has('ArrowDown')) y -= 1;
     if (this._keys.has('KeyD') || this._keys.has('ArrowRight')) x += 1;
     if (this._keys.has('KeyA') || this._keys.has('ArrowLeft')) x -= 1;
+
+    if (x !== 0 || y !== 0) {
+      // 직접 조작이 들어오면 자동 이동은 바로 놓아준다
+      this._autoTarget = null;
+    } else if (this._autoTarget) {
+      const dx = this._autoTarget.x - this.position.x;
+      const dz = this._autoTarget.z - this.position.z;
+      const dist = Math.hypot(dx, dz);
+      if (dist < AUTO_ARRIVE_RADIUS) {
+        this._autoTarget = null;
+      } else {
+        // 목적지를 바라보게 시선을 부드럽게 돌리고 앞으로 걷는다
+        const want = Math.atan2(-dx, -dz);
+        let diff = want - this.yaw;
+        diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+        this.yaw += clamp(diff, -AUTO_TURN_RATE, AUTO_TURN_RATE);
+        y = 1;
+      }
+    }
 
     const length = Math.hypot(x, y);
     if (length > 1) {

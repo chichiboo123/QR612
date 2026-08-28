@@ -907,6 +907,107 @@ body {
   font-size: 17px;
 }
 
+.explorer-hud__top-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.explorer-hud__fullscreen {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: 7px 13px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(20, 24, 34, 0.62);
+  color: #fff;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.explorer-hud__fullscreen[hidden] {
+  display: none;
+}
+
+.explorer-hud__fullscreen .material-icons-outlined {
+  font-size: 17px;
+}
+
+/* 좁은 화면에서는 아이콘만 남겨 상단 줄이 밀리지 않게 한다 */
+@media (max-width: 480px) {
+  .explorer-hud__fullscreen-label {
+    display: none;
+  }
+
+  .explorer-hud__fullscreen {
+    padding: 7px 9px;
+  }
+}
+
+/* 전체화면일 때는 스테이지가 화면 전체를 차지한다 */
+/* 손가락으로 누르는 기기에서는 작은 컨트롤을 키운다 (권장 최소 44px) */
+@media (pointer: coarse) {
+  .stage__travel {
+    min-height: 44px;
+    padding: 10px 15px;
+    font-size: 0.8125rem;
+  }
+
+  .app-credits__toggle {
+    min-height: 44px;
+    padding: 10px 16px;
+  }
+}
+
+/* 조준점 — 포인터 락에서 더블클릭하면 화면 한가운데가 목적지가 된다 */
+.explorer-hud__crosshair {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 18px;
+  height: 18px;
+  margin: -9px 0 0 -9px;
+  pointer-events: none;
+  opacity: 0.72;
+}
+
+.explorer-hud__crosshair::before,
+.explorer-hud__crosshair::after {
+  content: '';
+  position: absolute;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 3px rgba(0, 0, 0, 0.55);
+}
+
+.explorer-hud__crosshair::before {
+  top: 50%;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  margin-top: -1px;
+}
+
+.explorer-hud__crosshair::after {
+  left: 50%;
+  top: 0;
+  height: 100%;
+  width: 2px;
+  margin-left: -1px;
+}
+
+.stage:fullscreen,
+.stage:-webkit-full-screen {
+  width: 100vw;
+  height: 100vh;
+  max-height: none;
+  border-radius: 0;
+  aspect-ratio: auto;
+}
+
 .explorer-hud__toast[hidden] {
   display: none;
 }

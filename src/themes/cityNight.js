@@ -187,6 +187,7 @@ export function placeDecorations(matrixSize) {
     const [lx, lz] = squareRingPoint(matrixSize, angle, 4.6);
     specs.push({
       type: 'streetLamp',
+      solid: true,
       position: [lx, 0, lz],
       rotation: [0, 0, 0],
       scale: 1.1,

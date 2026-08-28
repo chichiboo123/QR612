@@ -141,6 +141,7 @@ export function placeDecorations(matrixSize, matrix) {
     const [x, z] = ringPoint(matrixSize, baobabAngles[i], 5.5);
     specs.push({
       type: 'baobab',
+      solid: true,
       position: [x, 0, z],
       rotation: [0, rand() * Math.PI * 2, 0],
       scale: 3.2 + i * 0.5,
@@ -153,6 +154,7 @@ export function placeDecorations(matrixSize, matrix) {
     const [x, z] = ringPoint(matrixSize, volcanoAngles[i], 6);
     specs.push({
       type: 'volcano',
+      solid: true,
       position: [x, 0, z],
       rotation: [0, rand() * Math.PI * 2, 0],
       scale: 2.6 + i * 0.6,
@@ -163,6 +165,7 @@ export function placeDecorations(matrixSize, matrix) {
   const [cx, cz] = ringPoint(matrixSize, -8, 5.5);
   specs.push({
     type: 'chair',
+    solid: true,
     position: [cx, 0, cz],
     rotation: [0, -0.35, 0],
     scale: 1.6,
