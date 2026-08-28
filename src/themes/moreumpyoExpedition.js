@@ -98,14 +98,169 @@ export function getCurvature() {
 }
 
 /**
- * 질문 지형의 기복.
+ * 질문 지형의 높이 사다리.
  *
- * 이 값이 이 테마의 핵심이다. 0.42 면 언덕 높이가 1.16~2.84 로 흩어지는데,
- * 길(0.40)에서 점프하면 약 1.68 까지 닿으므로 낮은 언덕은 넘어갈 수 있고 높은
- * 언덕은 벽이 된다. 그래서 "높고 낮은 질문 지형 사이로 갈라지는 길" 이 된다.
+ * 처음에는 엔진의 무작위 지터에 맡겼는데, 셀마다 높이가 제멋대로라 길(0.40)과
+ * 언덕(1.16~) 사이가 텅 비어 버렸다. 그래서 실제로 걸어 보면 어디도 "올라가는"
+ * 느낌이 없고 그냥 평지와 벽만 있었다.
+ *
+ * 이제 높이를 무작위가 아니라 설계한다. Explorer 의 stepHeight 는 0.58 이므로
+ * 한 단을 0.52 로 잡으면 **걸어서** 한 칸씩 올라갈 수 있다.
+ *
+ *   길      0.40
+ *   1단     0.92   (+0.52 — 걸어서 올라감)
+ *   2단     1.44   (+0.52 — 걸어서 올라감)
+ *   3단/단상 1.96  (+0.52 — 걸어서 올라감)
+ *   벽      2.60~3.00  (3단에서 +0.64 이상이라 걸어서는 못 오르고 점프해야 한다)
+ *
+ * 실측한 점프 도달력은 단발 +1.80 / 삼단 +3.52 이므로, 벽도 마음먹으면 오를 수
+ * 있지만 계단은 아무 조작 없이 걸어 올라간다.
  */
-export function getHeightJitter() {
-  return 0.42;
+const TERRAIN = {
+  path: 0.4,
+  step1: 0.92,
+  step2: 1.44,
+  step3: 1.96,
+  wallMin: 2.6,
+  wallMax: 3.0,
+};
+
+/** 계단이 몇 군데 생길지 — 성능이 아니라 "특별함" 때문에 제한한다 */
+const STAIRWAY_COUNT = 14;
+/** 길가에 놓이는 낮은 단(테이블) 수 */
+const PLATFORM_COUNT = 14;
+
+/** 지형 설계는 매트릭스마다 한 번만 계산해 재사용한다 */
+let terrainCache = { size: -1, matrix: null, plan: null };
+
+/**
+ * 어느 칸을 계단으로, 어느 칸을 낮은 단으로 만들지 정한다.
+ *
+ * 계단은 길에 면한 언덕에서 시작해 **안쪽으로** 세 칸 올라간다. 그래서 길을 걷다
+ * 계단을 만나면 그대로 걸어 올라가 지형 위에 설 수 있다.
+ *
+ * @returns {Map<number, number>} 셀 인덱스 → 목표 높이
+ */
+function buildTerrainPlan(matrix, size) {
+  if (terrainCache.size === size && terrainCache.matrix === matrix) {
+    return terrainCache.plan;
+  }
+
+  const at = (row, col) => row * size + col;
+  const plan = new Map();
+
+  // 길에 면한 언덕과, 거기서 지형 안쪽으로 들어가는 방향
+  const STEPS = [
+    [-1, 0],
+    [1, 0],
+    [0, -1],
+    [0, 1],
+  ];
+  const edges = [];
+  for (let row = 2; row < size - 2; row += 1) {
+    for (let col = 2; col < size - 2; col += 1) {
+      if (!matrix[row][col]) continue;
+      for (const [dr, dc] of STEPS) {
+        const nr = row + dr;
+        const nc = col + dc;
+        if (nr < 0 || nc < 0 || nr >= size || nc >= size) continue;
+        if (matrix[nr][nc]) continue;
+        // 길이 (nr,nc) 쪽에 있으니 오르는 방향은 그 반대다
+        edges.push({ row, col, inDr: -dr, inDc: -dc });
+        break;
+      }
+    }
+  }
+
+  const rand = makeRandom(size * 331 + 17);
+  const used = [];
+  const farEnough = (row, col, gap) =>
+    used.every((u) => Math.hypot(u.row - row, u.col - col) >= gap);
+
+  // 1) 계단 — 길에서 시작해 안쪽으로 세 단
+  const ladder = [TERRAIN.step1, TERRAIN.step2, TERRAIN.step3];
+  let placedStairs = 0;
+  let gap = Math.max(size / 6, 4);
+  while (placedStairs < STAIRWAY_COUNT && gap >= 2) {
+    let placed = false;
+    for (let attempt = 0; attempt < 300 && edges.length; attempt += 1) {
+      const e = edges[Math.floor(rand() * edges.length)];
+      if (!e || plan.has(at(e.row, e.col)) || !farEnough(e.row, e.col, gap)) continue;
+
+      // 안쪽으로 이어지는 칸이 계속 언덕이어야 계단이 성립한다
+      const run = [];
+      let r = e.row;
+      let c = e.col;
+      for (let i = 0; i < ladder.length; i += 1) {
+        if (r < 0 || c < 0 || r >= size || c >= size) break;
+        if (!matrix[r][c] || plan.has(at(r, c))) break;
+        run.push([r, c]);
+        r += e.inDr;
+        c += e.inDc;
+      }
+      if (run.length < 2) continue; // 두 단은 되어야 계단이다
+
+      run.forEach(([rr, cc], i) => plan.set(at(rr, cc), ladder[i]));
+      used.push({ row: e.row, col: e.col, kind: 'stair', dr: e.inDr, dc: e.inDc });
+      placedStairs += 1;
+      placed = true;
+      break;
+    }
+    if (!placed) gap -= 1;
+  }
+
+  // 2) 낮은 단 — 길가에 놓인 테이블처럼, 걸어서 바로 올라설 수 있는 한 칸
+  let placedPlatforms = 0;
+  gap = Math.max(size / 7, 3);
+  while (placedPlatforms < PLATFORM_COUNT && gap >= 2) {
+    let placed = false;
+    for (let attempt = 0; attempt < 300 && edges.length; attempt += 1) {
+      const e = edges[Math.floor(rand() * edges.length)];
+      if (!e || plan.has(at(e.row, e.col)) || !farEnough(e.row, e.col, gap)) continue;
+      plan.set(at(e.row, e.col), TERRAIN.step1);
+      used.push({ row: e.row, col: e.col, kind: 'platform' });
+      placedPlatforms += 1;
+      placed = true;
+      break;
+    }
+    if (!placed) gap -= 1;
+  }
+
+  terrainCache = { size, matrix, plan, marks: used };
+  return plan;
+}
+
+/** 계단·단의 위치를 장식 배치에서도 쓰기 위해 꺼낸다 */
+function getTerrainMarks(matrix, size) {
+  buildTerrainPlan(matrix, size);
+  return terrainCache.marks || [];
+}
+
+/**
+ * 능선에 대하여.
+ *
+ * 계단 꼭대기(1.96)에서 벽(2.60~3.00)까지는 걸어서는 못 오르지만 점프 한 번이면
+ * 닿는다(실측 도달 +1.80). 그리고 벽끼리의 높이차는 0.40 이내라 일단 올라서면
+ * 능선을 따라 걸어 다닐 수 있다. 계단을 찾아 올라가 한 번 뛰면 질문 지형 위에서
+ * 세계 전체를 내려다볼 수 있다 — 이것이 이 지형의 보상이다.
+ */
+
+/**
+ * 셀 높이를 테마가 직접 정한다.
+ * 엔진은 이 값으로 렌더 높이와 충돌 높이를 함께 만들므로, 보이는 계단이
+ * 실제로 밟히는 계단이 된다.
+ */
+export function getCellScale({ col, row, isDark, matrix, size }) {
+  if (!isDark) return 1; // 길은 평평해야 걸어 다닐 수 있다
+
+  const blockHeight = 2.0; // getBlockGeometry(true).height 와 같은 값
+  const plan = buildTerrainPlan(matrix, size);
+  const planned = plan.get(row * size + col);
+  if (planned !== undefined) return planned / blockHeight;
+
+  // 나머지는 벽. 결정론적으로 조금씩 높이를 달리해 능선이 밋밋하지 않게 한다.
+  const n = Math.abs(Math.sin(col * 127.1 + row * 311.7) * 43758.5453) % 1;
+  return (TERRAIN.wallMin + n * (TERRAIN.wallMax - TERRAIN.wallMin)) / blockHeight;
 }
 
 /** 1인칭에서 언덕 경계가 보이도록 */
@@ -337,6 +492,36 @@ export function placeDecorations(matrixSize, matrix) {
         glowing: door.glowing,
         snapToGround: true,
       });
+    }
+  }
+
+  /* --- 계단과 단의 표식 ---------------------------------------------- */
+  //
+  // 높이만 낮춰 두면 "여기로 올라갈 수 있다" 는 것이 눈에 보이지 않는다.
+  // snapToGround 로 실제 지형 높이에 정확히 붙는 표식을 얹어 오르는 길을 알린다.
+
+  if (matrix) {
+    for (const mark of getTerrainMarks(matrix, matrixSize)) {
+      const x = mark.col - (matrixSize - 1) / 2;
+      const z = mark.row - (matrixSize - 1) / 2;
+      if (mark.kind === 'stair') {
+        specs.push({
+          type: 'stairRail',
+          position: [x, 0, z],
+          // 오르는 방향을 바라보게 세운다
+          rotation: [0, Math.atan2(mark.dc, mark.dr), 0],
+          scale: 1,
+          snapToGround: true,
+        });
+      } else {
+        specs.push({
+          type: 'platformMark',
+          position: [x, 0, z],
+          rotation: [0, rand() * Math.PI * 2, 0],
+          scale: 1,
+          snapToGround: true,
+        });
+      }
     }
   }
 
@@ -583,6 +768,10 @@ export function buildDecoration(spec) {
       return buildQuestionDoor(spec, 1.6);
     case 'wallDoor':
       return buildQuestionDoor(spec, 1.15);
+    case 'stairRail':
+      return buildStairRail();
+    case 'platformMark':
+      return buildPlatformMark();
 
     /* 배경 */
     case 'daySun':
@@ -686,6 +875,46 @@ function buildQuestionDoor(spec, height) {
   g.add(sprout);
 
   return g;
+}
+
+/**
+ * 계단 난간.
+ *
+ * 계단 자체는 지형(블록 높이)이 만든다. 이 난간은 "여기로 올라갈 수 있다" 는
+ * 것을 멀리서도 알아보게 하는 표식이다. 오르는 방향을 향해 선다.
+ */
+function buildStairRail() {
+  const railMat = flatMaterial(WOOD);
+
+  // 난간을 양옆으로 세우면 계단 하나에 메시가 아홉 개가 되어 드로우콜이 크게
+  // 늘었다. 오르는 입구를 알리는 작은 문틀 하나면 같은 뜻이 전달된다.
+  const postL = cylinder(0.05, 0.06, 0.66, 5, railMat, [-0.34, 0.33, 0]);
+  const postR = cylinder(0.05, 0.06, 0.66, 5, railMat, [0.34, 0.33, 0]);
+  const lintel = box(0.8, 0.08, 0.09, railMat, [0, 0.7, 0]);
+
+  // 올라가는 방향을 가리키는 화살 표식
+  const arrow = cone(0.15, 0.24, 4, glowMaterial(PALETTE.accent, { transparent: false }), [
+    0,
+    0.07,
+    0.34,
+  ]);
+  arrow.rotation.x = -Math.PI / 2;
+
+  return group(postL, postR, lintel, arrow);
+}
+
+/** 길가의 낮은 단 — 걸어서 바로 올라설 수 있는 자리라는 표식 */
+function buildPlatformMark() {
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(0.3, 0.4, 12),
+    glowMaterial(PALETTE.accent, { opacity: 0.4, depthWrite: false })
+  );
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = 0.02;
+
+  const pip = blob(0.09, 0, glowMaterial(SPROUT_GREEN, { transparent: false }), [0, 0.1, 0]);
+
+  return group(ring, pip);
 }
 
 /* ------------------------------------------------------------------ */
@@ -1360,7 +1589,7 @@ export default {
   getBackgroundSetup,
   getPlayerLight,
   getCurvature,
-  getHeightJitter,
+  getCellScale,
   getColorVariation,
   getBlockSpread,
   buildDecoration,
