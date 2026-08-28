@@ -132,6 +132,7 @@ export function placeDecorations(matrixSize, matrix) {
       const [mx, mz] = mounds[i];
       specs.push({
         type: rand() > 0.4 ? 'pine' : 'broadleaf',
+        solid: true,
         position: [mx, 0, mz],
         rotation: [0, rand() * Math.PI * 2, 0],
         scale: 0.85 + rand() * 0.7,
@@ -159,6 +160,7 @@ export function placeDecorations(matrixSize, matrix) {
   const [benchX, benchZ] = squareRingPoint(matrixSize, 138, 5.5);
   specs.push({
     type: 'logBench',
+    solid: true,
     position: [benchX, 0, benchZ],
     rotation: [0, -0.9, 0],
     scale: 1.6,
@@ -171,6 +173,7 @@ export function placeDecorations(matrixSize, matrix) {
     const [tx, tz] = ringPoint(matrixSize, angle, 5 + rand() * 4);
     specs.push({
       type: rand() > 0.35 ? 'pine' : 'broadleaf',
+      solid: true,
       position: [tx, 0, tz],
       rotation: [0, rand() * Math.PI * 2, 0],
       scale: 2.6 + rand() * 1.8,

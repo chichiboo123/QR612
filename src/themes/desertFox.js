@@ -157,6 +157,7 @@ export function placeDecorations(matrixSize) {
   const [fx, fz] = ringPoint(matrixSize, 152, 5);
   specs.push({
     type: 'fox',
+    solid: true,
     position: [fx, 0, fz],
     rotation: [0, -2.4, 0],
     scale: 2.1,
@@ -166,6 +167,7 @@ export function placeDecorations(matrixSize) {
   const [wx, wz] = ringPoint(matrixSize, -118, 6);
   specs.push({
     type: 'well',
+    solid: true,
     position: [wx, 0, wz],
     rotation: [0, 0.6, 0],
     scale: 2.4,

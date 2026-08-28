@@ -120,7 +120,7 @@ export function placeDecorations(matrixSize) {
     // 원형 정원 바닥 — 타일 아래에 깔리는 낮은 원판
     { type: 'gardenFloor', position: [0, -0.05, 0], scale: matrixSize / 2 + 6 },
     // 중심의 장미 한 송이
-    { type: 'rose', position: [0, 0, 0], rotation: [0, 0.4, 0], scale: 3.1 },
+    { type: 'rose', solid: true, position: [0, 0, 0], rotation: [0, 0.4, 0], scale: 3.1 },
     // 유리돔
     { type: 'glassDome', position: [0, 0, 0], scale: matrixSize / 2 + 7 },
   ];
@@ -128,6 +128,7 @@ export function placeDecorations(matrixSize) {
   const [wx, wz] = ringPoint(matrixSize, 42, 4.2);
   specs.push({
     type: 'wateringCan',
+    solid: true,
     position: [wx, 0, wz],
     rotation: [0, -0.9, 0],
     scale: 1.9,

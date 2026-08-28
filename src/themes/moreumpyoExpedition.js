@@ -376,11 +376,16 @@ export function placeDecorations(matrixSize, matrix) {
   const specs = [];
 
   /* --- 큰 장면들 (전환 중 사라진다) --------------------------------- */
+  //
+  // solid: true 인 장식은 실제로 밟히고 막히는 지형이 된다. 단상과 바위 위에는
+  // 올라설 수 있고, 문과 기둥은 통과하지 못한다. 천막 지붕처럼 머리 위에 있는
+  // 부분은 엔진이 알아서 제외하므로 정류장 아래로는 걸어 들어갈 수 있다.
 
   // 0° — 마침표 왕관 수여식장. 오늘 왕관을 받을 질문은 없다.
   const [cx, cz] = squareRingPoint(matrixSize, 0, 5.5);
   specs.push({
     type: 'crownCeremony',
+    solid: true,
     position: [cx, 0, cz],
     rotation: [0, facingCenter(0), 0],
     scale: 1.5,
@@ -391,6 +396,7 @@ export function placeDecorations(matrixSize, matrix) {
   const [gx, gz] = squareRingPoint(matrixSize, 0, 10);
   specs.push({
     type: 'fullStopGate',
+    solid: true,
     position: [gx, 0, gz],
     rotation: [0, facingCenter(0), 0],
     scale: 2.0,
@@ -400,6 +406,7 @@ export function placeDecorations(matrixSize, matrix) {
   const [mx, mz] = squareRingPoint(matrixSize, 200, 6.5);
   specs.push({
     type: 'mollaStopPlaza',
+    solid: true,
     position: [mx, 0, mz],
     rotation: [0, facingCenter(200), 0],
     scale: 1.6,
@@ -409,6 +416,7 @@ export function placeDecorations(matrixSize, matrix) {
   const [ex, ez] = squareRingPoint(matrixSize, 110, 6);
   specs.push({
     type: 'elephantRockScene',
+    solid: true,
     position: [ex, 0, ez],
     rotation: [0, facingCenter(110) + 0.4, 0],
     scale: 1.5,
@@ -418,6 +426,7 @@ export function placeDecorations(matrixSize, matrix) {
   const [bx, bz] = squareRingPoint(matrixSize, 285, 7);
   specs.push({
     type: 'babyDoorScene',
+    solid: true,
     position: [bx, 0, bz],
     rotation: [0, facingCenter(285), 0],
     scale: 1.4,
@@ -427,6 +436,7 @@ export function placeDecorations(matrixSize, matrix) {
   const [sx, sz] = squareRingPoint(matrixSize, 245, 4.4);
   specs.push({
     type: 'oldSignpost',
+    solid: true,
     position: [sx, 0, sz],
     rotation: [0, facingCenter(245) - 0.6, 0],
     scale: 1.2,
@@ -438,6 +448,7 @@ export function placeDecorations(matrixSize, matrix) {
     const [dx, dz] = squareRingPoint(matrixSize, angle, 4.6 + rand() * 3.4);
     specs.push({
       type: 'questionDoor',
+      solid: true,
       position: [dx, 0, dz],
       rotation: [0, facingCenter(angle) + (rand() - 0.5) * 0.6, 0],
       scale: 1.3 + rand() * 0.5,
@@ -484,6 +495,7 @@ export function placeDecorations(matrixSize, matrix) {
     for (const door of pickCorridorDoors(matrixSize, matrix, 16)) {
       specs.push({
         type: 'wallDoor',
+        solid: true,
         position: [door.x, 0, door.z],
         rotation: [0, door.facing, 0],
         scale: 0.9,

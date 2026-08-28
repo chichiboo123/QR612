@@ -40,11 +40,22 @@ import {
 } from './scanColors.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
+
+/** 각도를 -180~180 범위로 접는다 (시각적으로는 같은 방향) */
+function wrapAngle(deg) {
+  return (((deg + 180) % 360) + 360) % 360 - 180;
+}
 const BLACK = new THREE.Color(0x000000);
 const WARM_SUN = new THREE.Color(0xffc56f);
 
 /** 블록 사이 z-fighting 방지를 위한 최소 단차 */
 const GROUND_OFFSET = 0.02;
+
+/**
+ * 이 높이보다 밑에서 시작하는 소품만 밟히는 지형이 된다.
+ * 천막 지붕이나 공중에 뜬 오브젝트 아래로는 걸어 들어갈 수 있어야 한다.
+ */
+const PROP_SOLID_CEILING = 1.1;
 
 /** 평탄화된 3D 블록 바로 위에서 자연스럽게 이어지는 스캔 카드 높이. */
 const SCAN_CARD_Y = 0.38;
@@ -88,7 +99,7 @@ export class SceneEngine {
     this.renderer.domElement.setAttribute('role', 'button');
     this.renderer.domElement.setAttribute(
       'aria-label',
-      '탭하여 QR코드 보기 / 3D 장면으로 돌아가기'
+      '탭하여 QR코드 보기 / 3D 장면으로 돌아가기. QR 여행 중에는 두 번 눌러 그 지점으로 이동합니다.'
     );
     container.appendChild(this.renderer.domElement);
 
@@ -658,6 +669,7 @@ export class SceneEngine {
    * 대신 QR 판을 침범할 수 있는 큰 오브젝트는 반드시 사라져야 한다.
    */
   _buildDecorations(size) {
+    this._buildPropField(size);
     const specs = this.theme.placeDecorations(size, this.matrix) || [];
     for (const spec of specs) {
       const obj = this.theme.buildDecoration?.(spec);
@@ -676,10 +688,89 @@ export class SceneEngine {
       applySpecTransform(obj, placed);
       enableShadows(obj);
       this._applyDomeToObject(obj, 1);
+      // spec.solid 인 장식은 실제로 밟히고 막히는 지형이 된다.
+      // (선언한 테마에서만 동작하므로 기존 테마의 이동은 그대로다)
+      if (spec.solid) this._rasterizeProp(obj);
       (spec.persistent ? this.sceneryGroup : this.decorGroup).add(obj);
       this._trackDisposable(obj);
     }
     this._decorBend = 1;
+  }
+
+  /* --------------------------------------------------------------- */
+  /* 장식 충돌 (밟히는 소품)                                           */
+  /* --------------------------------------------------------------- */
+
+  /**
+   * 장식이 만드는 높이 필드.
+   *
+   * QR 블록만 지형으로 쓰면 단상·벤치·바위 같은 소품을 그대로 통과해 버려서
+   * 사실감이 없다. 그렇다고 오브젝트마다 물리 콜라이더를 두면 엔진이 무거워지므로,
+   * 소품의 월드 바운딩박스를 바닥 격자에 찍어 "지형 높이" 로 합친다.
+   * 그러면 낮은 단은 걸어 올라가고, 높은 구조물은 걸어서 막히고, 점프로 오를 수
+   * 있다 — Explorer 의 stepHeight/점프 규칙이 그대로 적용된다.
+   */
+  _buildPropField(size) {
+    const quiet = this.qr?.quietZone ?? 4;
+    // QR 판 + 바깥 장식이 모두 들어오는 범위
+    const half = size / 2 + quiet + 24;
+    const cell = 0.5; // 모듈 하나를 4칸으로 나눠 소품 윤곽을 잡는다
+    const span = Math.ceil((half * 2) / cell);
+    this.propField = {
+      half,
+      cell,
+      span,
+      heights: new Float32Array(span * span),
+    };
+  }
+
+  /**
+   * 소품 하나를 높이 필드에 찍는다.
+   *
+   * 바닥에서 뜬 부분(차양·매달린 천·떠 있는 왕관)은 지형으로 삼지 않는다.
+   * 그렇지 않으면 천막 아래로 걸어 들어갈 수 없게 된다.
+   */
+  _rasterizeProp(obj) {
+    const field = this.propField;
+    if (!field) return;
+
+    obj.updateMatrixWorld(true);
+    const box = new THREE.Box3();
+    // 소품이 놓인 바닥 높이. snapToGround 로 지형 위에 얹힌 소품은 월드 y 가
+    // 이미 높으므로, 절대 높이가 아니라 자기 발치를 기준으로 판정해야 한다.
+    const base = obj.position.y;
+
+    obj.traverse((child) => {
+      if (!child.isMesh) return;
+      box.setFromObject(child);
+      if (!isFinite(box.min.y) || box.max.y <= base + 0.04) return;
+      // 머리 위 구조물(천막 지붕, 공중에 뜬 것)은 통과할 수 있어야 한다
+      if (box.min.y - base > PROP_SOLID_CEILING) return;
+
+      const minCol = Math.floor((box.min.x + field.half) / field.cell);
+      const maxCol = Math.floor((box.max.x + field.half) / field.cell);
+      const minRow = Math.floor((box.min.z + field.half) / field.cell);
+      const maxRow = Math.floor((box.max.z + field.half) / field.cell);
+
+      for (let row = minRow; row <= maxRow; row += 1) {
+        if (row < 0 || row >= field.span) continue;
+        for (let col = minCol; col <= maxCol; col += 1) {
+          if (col < 0 || col >= field.span) continue;
+          const i = row * field.span + col;
+          if (box.max.y > field.heights[i]) field.heights[i] = box.max.y;
+        }
+      }
+    });
+  }
+
+  /** 월드 좌표의 장식 높이 (없으면 0) */
+  getPropHeightAt(x, z) {
+    const field = this.propField;
+    if (!field) return 0;
+    const col = Math.floor((x + field.half) / field.cell);
+    const row = Math.floor((z + field.half) / field.cell);
+    if (col < 0 || row < 0 || col >= field.span || row >= field.span) return 0;
+    return field.heights[row * field.span + col];
   }
 
   /* --------------------------------------------------------------- */
@@ -715,10 +806,12 @@ export class SceneEngine {
     const map = this.heightmap;
     if (!map) return 0;
 
+    const prop = this.getPropHeightAt(x, z);
+
     const col = Math.floor(x + map.size / 2);
     const row = Math.floor(z + map.size / 2);
-    if (col < 0 || row < 0 || col >= map.size || row >= map.size) return 0;
-    return map.heights[row * map.size + col];
+    if (col < 0 || row < 0 || col >= map.size || row >= map.size) return prop;
+    return Math.max(map.heights[row * map.size + col], prop);
   }
 
   /* --------------------------------------------------------------- */
@@ -829,8 +922,10 @@ export class SceneEngine {
     if (this.explorer?.active) return;
 
     const interact = state.interactivity;
-    const azimuth =
-      state.azimuth + (this.autoAzimuth + this.userAzimuth) * interact;
+    // 누적 회전량을 -180~180 으로 접어 최단 경로로 되감는다.
+    // 접지 않으면 오래 구경한 뒤 전환할 때 카메라가 몇 바퀴를 되감는다.
+    const spin = wrapAngle(this.autoAzimuth + this.userAzimuth);
+    const azimuth = state.azimuth + spin * interact;
     const elevation = clamp(
       state.elevation + this.userElevation * interact,
       8,
@@ -1193,8 +1288,14 @@ export class SceneEngine {
     const changed = exploring ? false : this.transition.update(dt);
     const state = this._state();
 
-    if (!this._dragging && !exploring) {
-      this.autoAzimuth += dt * 3.2 * state.interactivity;
+    // 자동 회전은 "가만히 있는 3D 뷰" 에서만 돈다.
+    //
+    // 예전에는 전환 중에도 interactivity 를 곱해 계속 돌렸는데, 그러면
+    // 카메라 방위가 (45°→30°→0° 로 내려가는 연출 각도) + (계속 커지다가
+    // 페이드로 0 이 되는 자동 회전량) 이 되어 한쪽으로 밀렸다가 되돌아오는
+    // 좌우 스윙이 생겼다. 전환이 시작되면 회전을 멈춰 한 방향으로만 돈다.
+    if (!this._dragging && !exploring && this.transition.progress === 0) {
+      this.autoAzimuth += dt * 3.2;
     }
 
     if (changed || this._needsInstanceUpdate) {
@@ -1283,11 +1384,12 @@ export class SceneEngine {
       startY = e.clientY;
     };
 
-    const onUp = (e) => {
+    const onUp = () => {
       if (pointerId === null) return;
       el.releasePointerCapture?.(pointerId);
       pointerId = null;
       this._dragging = false;
+      // 탐험 중의 탭·더블탭은 explorerHud 가 다룬다 (시점 드래그와 구분해야 한다)
       if (!moved && !this.explorer?.active) this.toggleView();
     };
 

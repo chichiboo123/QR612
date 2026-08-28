@@ -25,16 +25,24 @@ export function createExplorerHud({ stage, canvas, explorer, onExit }) {
         <span class="material-icons-outlined" aria-hidden="true">explore</span>
         <span class="explorer-hud__count-text">0 / 0</span>
       </span>
-      <button type="button" class="explorer-hud__exit">
-        <span class="material-icons-outlined" aria-hidden="true">close</span>
-        여행 끝내기
-      </button>
+      <div class="explorer-hud__top-actions">
+        <button type="button" class="explorer-hud__fullscreen" aria-pressed="false">
+          <span class="material-icons-outlined" aria-hidden="true">fullscreen</span>
+          <span class="explorer-hud__fullscreen-label">전체화면</span>
+        </button>
+        <button type="button" class="explorer-hud__exit">
+          <span class="material-icons-outlined" aria-hidden="true">close</span>
+          여행 끝내기
+        </button>
+      </div>
     </div>
 
     <div class="explorer-hud__toast" role="status" aria-live="polite" hidden>
       <span class="explorer-hud__toast-title"></span>
       <span class="explorer-hud__toast-body"></span>
     </div>
+
+    <div class="explorer-hud__crosshair" aria-hidden="true" hidden></div>
 
     <p class="explorer-hud__tip"></p>
 
@@ -57,6 +65,10 @@ export function createExplorerHud({ stage, canvas, explorer, onExit }) {
   const stick = root.querySelector('.explorer-hud__stick');
   const knob = root.querySelector('.explorer-hud__stick-knob');
   const jumpButton = root.querySelector('.explorer-hud__jump');
+  const crosshair = root.querySelector('.explorer-hud__crosshair');
+  const fullscreenButton = root.querySelector('.explorer-hud__fullscreen');
+  const fullscreenIcon = fullscreenButton.querySelector('.material-icons-outlined');
+  const fullscreenLabel = root.querySelector('.explorer-hud__fullscreen-label');
 
   root.querySelector('.explorer-hud__exit').addEventListener('click', onExit);
 
@@ -121,17 +133,24 @@ export function createExplorerHud({ stage, canvas, explorer, onExit }) {
 
   let lookPointer = null;
   let lastLook = { x: 0, y: 0 };
+  let lookStart = { x: 0, y: 0 };
+  let lookMoved = false;
 
   function onLookDown(e) {
     if (!explorer.active) return;
     if (e.target.closest('.explorer-hud__controls, .explorer-hud__top')) return;
     lookPointer = e.pointerId;
     lastLook = { x: e.clientX, y: e.clientY };
+    lookStart = { x: e.clientX, y: e.clientY };
+    lookMoved = false;
     canvas.setPointerCapture?.(lookPointer);
   }
 
   function onLookMove(e) {
     if (!explorer.active || e.pointerId !== lookPointer) return;
+    if (Math.hypot(e.clientX - lookStart.x, e.clientY - lookStart.y) > 10) {
+      lookMoved = true;
+    }
     explorer.look(
       (e.clientX - lastLook.x) * LOOK_SENSITIVITY,
       (e.clientY - lastLook.y) * LOOK_SENSITIVITY
@@ -143,7 +162,46 @@ export function createExplorerHud({ stage, canvas, explorer, onExit }) {
     if (e.pointerId !== lookPointer) return;
     canvas.releasePointerCapture?.(lookPointer);
     lookPointer = null;
+
+    // 터치에서는 두 번 두드리면 그 지점으로 걸어간다.
+    // (마우스는 아래 dblclick 이 맡는다 — 브라우저 기본 판정이 더 정확하다)
+    if (e.pointerType === 'touch' && !lookMoved) {
+      const now = performance.now();
+      const near = Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 32;
+      if (now - lastTap.at < 380 && near) {
+        lastTap.at = 0;
+        walkToPoint(e.clientX, e.clientY);
+      } else {
+        lastTap = { at: now, x: e.clientX, y: e.clientY };
+      }
+    }
   }
+
+  /* --- 두 번 두드린 곳으로 이동 -------------------------------------- */
+
+  let lastTap = { at: 0, x: 0, y: 0 };
+
+  /** 화면 좌표를 정규화 좌표로 바꿔 탐험 컨트롤러에 넘긴다 */
+  function walkToPoint(clientX, clientY) {
+    const rect = canvas.getBoundingClientRect();
+    const ok = explorer.moveToScreenPoint(
+      ((clientX - rect.left) / rect.width) * 2 - 1,
+      -((clientY - rect.top) / rect.height) * 2 + 1
+    );
+    if (ok) showHint('그곳으로 이동합니다');
+  }
+
+  canvas.addEventListener('dblclick', (e) => {
+    if (!explorer.active) return;
+    e.preventDefault();
+    if (document.pointerLockElement === canvas) {
+      // 포인터 락 상태에서는 커서가 없으니 화면 한가운데(조준점)를 목적지로 삼는다
+      const rect = canvas.getBoundingClientRect();
+      walkToPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+    } else {
+      walkToPoint(e.clientX, e.clientY);
+    }
+  });
 
   canvas.addEventListener('pointerdown', onLookDown);
   canvas.addEventListener('pointermove', onLookMove);
@@ -166,6 +224,13 @@ export function createExplorerHud({ stage, canvas, explorer, onExit }) {
     canvas.requestPointerLock?.();
   }
   canvas.addEventListener('click', requestLock);
+
+  // 포인터 락에서는 커서가 사라지고 더블클릭 목적지가 화면 한가운데가 되므로,
+  // 어디를 겨누는지 보여 주는 조준점이 필요하다.
+  function syncCrosshair() {
+    crosshair.hidden = !(explorer.active && document.pointerLockElement === canvas);
+  }
+  document.addEventListener('pointerlockchange', syncCrosshair);
 
   /* --------------------------------------------------------------- */
   /* 표시 상태                                                         */
@@ -191,10 +256,73 @@ export function createExplorerHud({ stage, canvas, explorer, onExit }) {
     }, 3200);
   }
 
+  /** 토스트보다 가벼운 한 줄 안내 */
+  let hintTimer = null;
+  function showHint(text) {
+    tip.textContent = text;
+    tip.classList.add('is-in');
+    clearTimeout(hintTimer);
+    hintTimer = setTimeout(() => {
+      tip.classList.remove('is-in');
+      tip.textContent = baseTip;
+    }, 1800);
+  }
+
+  /* --------------------------------------------------------------- */
+  /* 전체화면 — 몰입감                                                 */
+  /* --------------------------------------------------------------- */
+
+  function fullscreenTarget() {
+    return stage || canvas;
+  }
+
+  function isFullscreen() {
+    return (
+      document.fullscreenElement === fullscreenTarget() ||
+      document.webkitFullscreenElement === fullscreenTarget()
+    );
+  }
+
+  async function toggleFullscreen() {
+    const el = fullscreenTarget();
+    try {
+      if (isFullscreen()) {
+        await (document.exitFullscreen?.() ?? document.webkitExitFullscreen?.());
+      } else {
+        // iOS 사파리는 요소 전체화면을 지원하지 않는다 — 그런 기기에서는
+        // 버튼을 아예 감춰 두므로 여기까지 오지 않는다.
+        await (el.requestFullscreen?.() ?? el.webkitRequestFullscreen?.());
+      }
+    } catch {
+      /* 사용자가 거부했거나 지원하지 않는 경우 — 조용히 넘어간다 */
+    }
+  }
+
+  function syncFullscreenButton() {
+    const on = isFullscreen();
+    fullscreenButton.setAttribute('aria-pressed', String(on));
+    fullscreenIcon.textContent = on ? 'fullscreen_exit' : 'fullscreen';
+    fullscreenLabel.textContent = on ? '전체화면 끄기' : '전체화면';
+    root.classList.toggle('is-fullscreen', on);
+  }
+
+  fullscreenButton.addEventListener('click', (e) => {
+    e.preventDefault();
+    toggleFullscreen();
+  });
+  document.addEventListener('fullscreenchange', syncFullscreenButton);
+  document.addEventListener('webkitfullscreenchange', syncFullscreenButton);
+
+  // 요소 전체화면을 못 쓰는 기기에서는 버튼을 감춘다
+  if (!(fullscreenTarget().requestFullscreen || fullscreenTarget().webkitRequestFullscreen)) {
+    fullscreenButton.hidden = true;
+  }
+
   const touchDevice = window.matchMedia?.('(hover: none)').matches;
-  tip.textContent = touchDevice
-    ? '왼쪽 조이스틱으로 이동 · 화면을 밀어 시점 · 점프로 블록 위에 올라가 보세요'
-    : 'WASD 이동 · Space 연속 입력으로 높이 점프 · Shift 달리기 · Esc 로 나가기';
+  const baseTip = touchDevice
+    ? '조이스틱으로 이동 · 화면을 밀어 시점 · 두 번 두드리면 그곳으로 이동 · 점프로 구조물 위에'
+    : 'WASD 이동 · 더블클릭으로 그 지점까지 이동 · Space 점프(연속 입력으로 더 높이) · Shift 달리기 · Esc 나가기';
+  tip.textContent = baseTip;
 
   return {
     element: root,
@@ -202,15 +330,21 @@ export function createExplorerHud({ stage, canvas, explorer, onExit }) {
     show(total) {
       root.hidden = false;
       countText.textContent = `0 / ${total}`;
+      tip.textContent = baseTip;
       tip.classList.add('is-in');
+      syncFullscreenButton();
       setTimeout(() => tip.classList.remove('is-in'), 6000);
     },
 
     hide() {
       root.hidden = true;
+      crosshair.hidden = true;
       toast.hidden = true;
       clearTimeout(toastTimer);
       if (document.pointerLockElement === canvas) document.exitPointerLock?.();
+      if (isFullscreen()) {
+        (document.exitFullscreen?.() ?? document.webkitExitFullscreen?.())?.catch?.(() => {});
+      }
     },
 
     setCount(found, total) {
