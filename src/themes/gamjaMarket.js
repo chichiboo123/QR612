@@ -41,7 +41,7 @@ import {
   blob,
   group,
   squareRingPoint,
-  pickWalkableCells,
+  pickConnectedCells,
   makeRandom,
 } from './_shared.js';
 
@@ -437,89 +437,6 @@ export function placeDecorations(matrixSize, matrix) {
 }
 
 /**
- * 바깥에서 걸어 들어가 실제로 닿을 수 있는 골목 칸만 고른다.
- *
- * _shared.js 의 pickWalkableCells() 는 light 모듈인지만 보고 연결성은 보지
- * 않는다. 그래서 사방이 매대로 막힌 골목 주머니가 뽑히고, 그 자리의 랜드마크는
- * 영영 발견할 수 없다. (실측: 25×25 에서 6개 중 3개가 고립된 자리였다)
- *
- * 그 판정을 여기서 한 번 더 한다. 공용 헬퍼를 고치면 기존 여섯 테마의 배치가
- * 전부 바뀌므로 건드리지 않는다.
- *
- * 걷기 규칙은 Explorer 와 같다.
- *   - 매대(dark 2.13~3.07) 는 stepHeight 0.58 을 훨씬 넘으므로 언제나 벽이다.
- *   - 골목(light 0.39~0.45) 은 언제나 걸어 오를 수 있다.
- *   - _groundAt 이 플레이어 사각형 네 모서리의 최댓값을 쓰므로 대각선으로
- *     모서리를 빠져나갈 수 없다. 따라서 상하좌우 4방향 연결만 센다.
- *
- * @param {number} matrixSize
- * @param {boolean[][]} matrix
- * @param {number} count
- * @param {number} seed
- * @returns {{x:number, z:number}[]}
- */
-function pickConnectedCells(matrixSize, matrix, count, seed) {
-  const N = matrixSize;
-  const index = (row, col) => row * N + col;
-  const reached = new Uint8Array(N * N);
-  const queue = [];
-
-  // 그리드 바깥 바닥(높이 0)에서 걸어 들어올 수 있는 테두리 골목이 출발점이다
-  for (let i = 0; i < N; i += 1) {
-    for (const [row, col] of [[0, i], [N - 1, i], [i, 0], [i, N - 1]]) {
-      if (matrix[row][col] || reached[index(row, col)]) continue;
-      reached[index(row, col)] = 1;
-      queue.push(row, col);
-    }
-  }
-
-  while (queue.length) {
-    const col = queue.pop();
-    const row = queue.pop();
-    for (const [dr, dc] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-      const nr = row + dr;
-      const nc = col + dc;
-      if (nr < 0 || nc < 0 || nr >= N || nc >= N) continue;
-      if (matrix[nr][nc] || reached[index(nr, nc)]) continue;
-      reached[index(nr, nc)] = 1;
-      queue.push(nr, nc);
-    }
-  }
-
-  // 가장자리 2칸은 파인더 패턴 주변이라 배치에서 제외한다 (공용 헬퍼와 동일)
-  const candidates = [];
-  for (let row = 2; row < N - 2; row += 1) {
-    for (let col = 2; col < N - 2; col += 1) {
-      if (matrix[row][col] || !reached[index(row, col)]) continue;
-      candidates.push({ x: col - (N - 1) / 2, z: row - (N - 1) / 2 });
-    }
-  }
-
-  // 서로 떨어뜨려 고르되, 자리가 모자라면 간격을 좁혀 가며 반드시 count 개를 채운다
-  const rand = makeRandom(N * 911 + seed);
-  const chosen = [];
-  let minGap = Math.max(N / 5, 4);
-
-  while (chosen.length < count && minGap >= 1) {
-    let placed = false;
-    for (let attempt = 0; attempt < 400 && candidates.length; attempt += 1) {
-      const candidate = candidates[Math.floor(rand() * candidates.length)];
-      if (!candidate) break;
-      const tooClose = chosen.some(
-        (c) => Math.hypot(c.x - candidate.x, c.z - candidate.z) < minGap
-      );
-      if (tooClose) continue;
-      chosen.push(candidate);
-      placed = true;
-      break;
-    }
-    if (!placed) minGap -= 1;
-  }
-
-  return chosen;
-}
-
-/**
  * 골목에서 발견하는 여섯 장면 — 작품의 줄거리를 그대로 따라간다.
  * 걸어서 닿아야 하므로 실제로 도달 가능한 light 모듈(골목) 위에만 놓는다.
  */
@@ -564,11 +481,12 @@ export function placeLandmarks(matrixSize, matrix) {
     },
   ];
 
-  const points = matrix
-    ? pickConnectedCells(matrixSize, matrix, entries.length, 37)
-    : pickWalkableCells(matrixSize, matrix, entries.length, 37);
-
-  return points.map((point, i) => ({ ...entries[i], ...point }));
+  // pickConnectedCells 는 실제로 걸어서 닿는 칸만 고른다.
+  // pickWalkableCells 는 light 모듈인지만 보고 연결성을 보지 않아, 사방이 막힌
+  // 골목에 랜드마크가 놓이면 영영 발견할 수 없다.
+  return pickConnectedCells(matrixSize, matrix, entries.length, 37).map(
+    (point, i) => ({ ...entries[i], x: point.x, z: point.z })
+  );
 }
 
 /* ------------------------------------------------------------------ */
